@@ -1,0 +1,87 @@
+{% extends "tickets/base.html" %}
+{% load ticket_extras %}
+
+{% block title %}Chamado #{{ ticket.pk }} — Chamados de TI{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <a href="{% url 'tickets:meus_tickets' %}" class="link-secondary small">&larr; Voltar para meus chamados</a>
+
+        <div class="card shadow-sm mt-2 mb-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <h1 class="h4 card-title mb-0">Chamado #{{ ticket.pk }}</h1>
+                    <span class="badge {% if ticket.status == 'aberto' %}bg-warning text-dark{% elif ticket.status == 'em_atendimento' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                        {{ ticket.get_status_display }}
+                    </span>
+                </div>
+
+                <div class="kv-grid mb-4">
+                    <div>
+                        <div class="kv-label">Categoria</div>
+                        <div class="kv-value">{{ ticket.categoria_final|default:ticket.categoria_sugerida }}</div>
+                    </div>
+                    <div>
+                        <div class="kv-label">Setor</div>
+                        <div class="kv-value">{{ ticket.setor }}</div>
+                    </div>
+                    <div>
+                        <div class="kv-label">Nível de atendimento</div>
+                        <div class="kv-value">{{ ticket.get_impacto_display }}</div>
+                    </div>
+                    <div>
+                        <div class="kv-label">Aberto em</div>
+                        <div class="kv-value">{{ ticket.data_abertura|date:"d/m/Y H:i" }}</div>
+                    </div>
+                    {% if ticket.tecnico_responsavel %}
+                    <div>
+                        <div class="kv-label">Técnico responsável</div>
+                        <div class="kv-value">{{ ticket.tecnico_responsavel.get_full_name|default:ticket.tecnico_responsavel.username }}</div>
+                    </div>
+                    {% endif %}
+                    {% if ticket.data_fechamento %}
+                    <div>
+                        <div class="kv-label">Fechado em</div>
+                        <div class="kv-value">{{ ticket.data_fechamento|date:"d/m/Y H:i" }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="kv-label mb-1">Descrição enviada</div>
+                <div class="description-box">{{ ticket.descricao }}</div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <h2 class="h6 mb-3">Respostas do atendimento</h2>
+
+                {% if comentarios %}
+                <div class="d-flex flex-column gap-2">
+                    {% for comentario in comentarios %}
+                    {% with nome=comentario.autor.get_full_name|default:comentario.autor.username %}
+                    <div class="d-flex align-items-start gap-2">
+                        <span class="avatar-circle" style="background-color: {{ nome|cor_avatar }};">{{ nome|iniciais }}</span>
+                        <div class="comment-card tipo-{{ comentario.tipo }} flex-grow-1">
+                            <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
+                                <strong class="small">{{ nome }}</strong>
+                                <span class="badge bg-{{ comentario.badge_classe }}{% if comentario.badge_classe == 'info' %} text-dark{% endif %}">
+                                    {{ comentario.badge_emoji }} {{ comentario.badge_label }}
+                                </span>
+                                <span class="small text-muted">{{ comentario.criado_em|date:"d/m/Y H:i" }}</span>
+                            </div>
+                            <div>{{ comentario.texto|linebreaksbr }}</div>
+                        </div>
+                    </div>
+                    {% endwith %}
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted small mb-0">Ainda não há nenhuma resposta do atendimento para este chamado.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

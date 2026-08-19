@@ -1,0 +1,98 @@
+{% extends "tickets/base.html" %}
+
+{% block title %}Base de conhecimento — Chamados de TI{% endblock %}
+
+{% block extra_css %}
+.artigo-card {
+    transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+}
+.artigo-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+    border-color: var(--bs-primary);
+}
+.artigo-icone {
+    flex-shrink: 0;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 8px;
+    background: var(--brand-soft);
+    color: var(--brand);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.artigo-corpo {
+    min-height: 2.75rem;
+}
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h4 mb-0">Base de conhecimento</h1>
+    {% if user.is_staff or eh_gestor %}
+        <a href="{% url 'tickets:criar_artigo' %}" class="btn btn-primary btn-sm">Novo artigo</a>
+    {% endif %}
+</div>
+
+<form method="get" class="card card-body mb-4">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-7">
+            <label for="busca" class="form-label small mb-1">Buscar</label>
+            <div class="input-group">
+                <input
+                    type="text" name="busca" id="busca" class="form-control"
+                    placeholder="Título, resumo ou conteúdo..." value="{{ busca }}">
+                <button type="submit" class="btn btn-primary">Buscar</button>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <label for="categoria" class="form-label small mb-1">Categoria</label>
+            <select name="categoria" id="categoria" class="form-select">
+                <option value="">Todas</option>
+                {% for categoria in categorias %}
+                    <option value="{{ categoria.pk }}" {% if categoria_selecionada == categoria.pk|stringformat:"s" %}selected{% endif %}>{{ categoria.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            {% if busca or categoria_selecionada %}
+                <a href="{% url 'tickets:listar_artigos' %}" class="btn btn-outline-secondary w-100">Limpar</a>
+            {% endif %}
+        </div>
+    </div>
+</form>
+
+<div class="d-flex flex-column gap-2">
+    {% for artigo in artigos %}
+    <a href="{% url 'tickets:detalhe_artigo' artigo.pk %}" class="artigo-card card card-body text-decoration-none text-reset">
+        <div class="d-flex align-items-start gap-3">
+            <span class="artigo-icone" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+                    <path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z"/>
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                </svg>
+            </span>
+            <div class="flex-grow-1 artigo-corpo">
+                <div class="d-flex justify-content-between align-items-start gap-3">
+                    <div class="fw-semibold">{{ artigo.titulo|title }}</div>
+                    {% if artigo.categoria %}
+                        <span class="badge bg-secondary flex-shrink-0">{{ artigo.categoria.nome }}</span>
+                    {% endif %}
+                </div>
+                {% if artigo.resumo %}
+                    <div class="small text-muted">{{ artigo.resumo }}</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="small text-muted mt-2">
+            Por {{ artigo.autor.get_full_name|default:artigo.autor.username }} — atualizado em {{ artigo.atualizado_em|date:"d/m/Y H:i" }}
+        </div>
+    </a>
+    {% empty %}
+    <p class="text-muted small">
+        {% if busca or categoria_selecionada %}Nenhum artigo encontrado.{% else %}Nenhum artigo publicado ainda.{% endif %}
+    </p>
+    {% endfor %}
+</div>
+{% endblock %}

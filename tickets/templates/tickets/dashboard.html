@@ -1,0 +1,333 @@
+{% extends "tickets/base.html" %}
+{% load ticket_extras %}
+
+{% block title %}Dashboard — Chamados de TI{% endblock %}
+
+{% block extra_css %}
+.stat-card {
+    background: var(--stat-bg);
+    border: 1px solid var(--stat-border);
+    border-left: 4px solid var(--bs-primary);
+    border-radius: 8px;
+    padding: 0.9rem 1.1rem;
+    height: 100%;
+}
+.stat-card .stat-label {
+    font-size: 0.76rem;
+    color: var(--stat-label);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.info-icone {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 0.95rem;
+    height: 0.95rem;
+    border-radius: 50%;
+    border: 1px solid var(--card-border);
+    color: var(--label-muted);
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: normal;
+    cursor: help;
+    vertical-align: middle;
+}
+.stat-card .stat-value {
+    font-size: 1.7rem;
+    font-weight: 700;
+    color: var(--brand);
+    font-variant-numeric: tabular-nums;
+}
+.stat-card.stat-alerta { border-left-color: #ffc107; }
+.stat-card.stat-perigo { border-left-color: #dc3545; }
+.stat-card.stat-neutro { border-left-color: #6c757d; }
+
+.stat-value.valor-perigo { color: #dc3545; }
+.stat-value.valor-alerta { color: #b45309; }
+[data-bs-theme="dark"] .stat-value.valor-alerta { color: #fbbf24; }
+.stat-value.valor-neutro { color: var(--label-muted); }
+
+.stat-card.stat-calibragem {
+    border-left-color: var(--card-border);
+    opacity: 0.75;
+}
+.selo-calibragem {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--label-muted);
+    background: var(--brand-soft);
+    border-radius: 4px;
+    padding: 0.1rem 0.4rem;
+    margin-top: 0.35rem;
+}
+
+.painel-secao {
+    margin-bottom: 2rem;
+}
+.painel-titulo-texto {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--brand);
+    margin-bottom: 0.9rem;
+}
+
+.grid-5 {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.75rem;
+}
+@media (max-width: 992px) {
+    .grid-5 { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 576px) {
+    .grid-5 { grid-template-columns: repeat(2, 1fr); }
+}
+
+.painel-analitico {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 1.1rem 1.25rem;
+    height: 100%;
+}
+.painel-analitico h2 {
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+}
+
+.barra-setor-linha {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.55rem;
+}
+.barra-setor-nome {
+    flex: 0 0 40%;
+    font-size: 0.82rem;
+    color: var(--stat-label);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.barra-setor-trilho {
+    flex: 1 1 auto;
+    background: var(--brand-soft);
+    border-radius: 4px;
+    height: 0.85rem;
+    overflow: hidden;
+}
+.barra-setor-preenchimento {
+    height: 100%;
+    background: var(--bs-primary);
+    border-radius: 4px;
+}
+.barra-setor-total {
+    flex: 0 0 1.8rem;
+    text-align: right;
+    font-size: 0.82rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--brand);
+}
+
+.tabela-criticos { font-size: 0.85rem; }
+.tabela-criticos td { vertical-align: middle; padding: 0.4rem 0.3rem; }
+.tabela-criticos tbody tr { cursor: pointer; }
+
+.fluxo-svg { width: 100%; height: auto; }
+.fluxo-legenda {
+    display: flex;
+    gap: 1.25rem;
+    font-size: 0.78rem;
+    color: var(--stat-label);
+    margin-bottom: 0.75rem;
+}
+.fluxo-legenda-marca {
+    display: inline-block;
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 2px;
+    margin-right: 0.35rem;
+    vertical-align: middle;
+}
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-1">
+    <h1 class="h4 mb-0">Dashboard</h1>
+</div>
+<p class="text-muted small mb-4">
+    Visão geral do estado atual da fila de chamados.
+</p>
+
+<div class="painel-secao">
+    <p class="painel-titulo-texto">Indicadores operacionais de alerta</p>
+    <div class="grid-5">
+        <div class="stat-card stat-perigo">
+            <div class="stat-label">SLA estourado</div>
+            <div class="stat-value {% if alertas.estourados > 0 %}valor-perigo{% else %}valor-neutro{% endif %}">{{ alertas.estourados }}</div>
+        </div>
+        <div class="stat-card stat-perigo">
+            <div class="stat-label">Estoura em até 30 min</div>
+            <div class="stat-value {% if alertas.criticos_30min > 0 %}valor-perigo{% else %}valor-neutro{% endif %}">{{ alertas.criticos_30min }}</div>
+        </div>
+        <div class="stat-card stat-alerta">
+            <div class="stat-label">Estoura em até 60 min</div>
+            <div class="stat-value {% if alertas.criticos_60min > 0 %}valor-alerta{% else %}valor-neutro{% endif %}">{{ alertas.criticos_60min }}</div>
+        </div>
+        <div class="stat-card stat-neutro">
+            <div class="stat-label">Sem técnico atribuído</div>
+            <div class="stat-value {% if alertas.sem_atribuicao > 0 %}valor-alerta{% else %}valor-neutro{% endif %}">{{ alertas.sem_atribuicao }}</div>
+        </div>
+        <div class="stat-card stat-alerta">
+            <div class="stat-label">Abertos em setores vitais</div>
+            <div class="stat-value {% if alertas.setores_vitais > 0 %}valor-alerta{% else %}valor-neutro{% endif %}">{{ alertas.setores_vitais }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="painel-secao">
+    <p class="painel-titulo-texto">Volume e fluxo diário</p>
+    <div class="row g-3">
+        <div class="col-sm-6 col-lg-3">
+            <div class="stat-card">
+                <div class="stat-label">Abertos hoje</div>
+                <div class="stat-value">{{ volume.abertos_hoje }}</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="stat-card">
+                <div class="stat-label">Fechados hoje</div>
+                <div class="stat-value">{{ volume.fechados_hoje }}</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="stat-card {% if volume.saldo_hoje > 0 %}stat-alerta{% elif volume.saldo_hoje < 0 %}stat-neutro{% endif %}">
+                <div class="stat-label">
+                    Saldo do dia
+                    <span class="info-icone" tabindex="0" title="Saldo positivo = a fila está crescendo hoje. Negativo = está sendo drenada.">?</span>
+                </div>
+                <div class="stat-value {% if volume.saldo_hoje > 0 %}valor-alerta{% elif volume.saldo_hoje < 0 %}valor-neutro{% endif %}">
+                    {% if volume.saldo_hoje > 0 %}<span aria-hidden="true">↑</span> +{{ volume.saldo_hoje }}
+                    {% elif volume.saldo_hoje < 0 %}<span aria-hidden="true">↓</span> {{ volume.saldo_hoje }}
+                    {% else %}{{ volume.saldo_hoje }}{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="stat-card">
+                <div class="stat-label">Em atendimento</div>
+                <div class="stat-value">{{ volume.em_atendimento }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="painel-secao">
+    <p class="painel-titulo-texto">Eficiência e desempenho (últimos 7 dias)</p>
+    <div class="row g-3">
+        <div class="col-sm-6 col-lg-3">
+            <div class="stat-card">
+                <div class="stat-label">Tempo médio de resolução</div>
+                <div class="stat-value">{{ eficiencia.mttr_formatado|default:"—" }}</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="stat-card">
+                <div class="stat-label">Tempo médio até 1ª resposta</div>
+                <div class="stat-value">{{ eficiencia.mtta_formatado|default:"—" }}</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="stat-card stat-calibragem">
+                <div class="stat-label">Aguardando terceiros/usuário</div>
+                <div class="stat-value valor-neutro">—</div>
+                <span class="selo-calibragem">Em calibragem</span>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="stat-card stat-calibragem">
+                <div class="stat-label">Resolução no 1º contato</div>
+                <div class="stat-value valor-neutro">—</div>
+                <span class="selo-calibragem">Sem dados suficientes</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="painel-secao row g-3">
+    <div class="col-lg-6">
+        <div class="painel-analitico">
+            <h2>Volume por setor</h2>
+            {% for setor_nome, total in volume_por_setor %}
+                <div class="barra-setor-linha">
+                    <span class="barra-setor-nome" title="{{ setor_nome }}">{{ setor_nome }}</span>
+                    <span class="barra-setor-trilho">
+                        <span class="barra-setor-preenchimento" style="width: {% widthratio total maior_volume_setor 100 %}%;"></span>
+                    </span>
+                    <span class="barra-setor-total">{{ total }}</span>
+                </div>
+            {% empty %}
+                <p class="text-muted small mb-0">Nenhum chamado em aberto no momento.</p>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="painel-analitico">
+            <h2>Chamados com maior risco de SLA</h2>
+            {% if chamados_criticos %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover tabela-criticos mb-0">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Solicitante</th>
+                                <th>Setor</th>
+                                <th>Prazo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in chamados_criticos %}
+                            <tr onclick="window.location='{% url 'tickets:detalhe_ticket' item.ticket.pk %}'" style="cursor: pointer;">
+                                <td>{{ item.ticket.pk }}</td>
+                                <td>{{ item.ticket.solicitante_nome }}</td>
+                                <td>{{ item.ticket.setor }}</td>
+                                <td class="{% if item.estourado %}text-danger fw-semibold{% endif %}">
+                                    {{ item.prazo|date:"d/m H:i" }}{% if item.estourado %} (estourado){% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-muted small mb-0">Nenhum chamado em aberto no momento.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="painel-analitico painel-secao">
+    <h2>Abertura vs. fechamento (últimos 7 dias)</h2>
+    <div class="fluxo-legenda">
+        <span><span class="fluxo-legenda-marca" style="background: var(--bs-primary);"></span>Abertos</span>
+        <span><span class="fluxo-legenda-marca" style="background: #6c757d;"></span>Fechados</span>
+    </div>
+    <svg class="fluxo-svg" viewBox="0 0 {{ fluxo_svg.largura }} {{ fluxo_svg.altura }}" preserveAspectRatio="none" role="img" aria-label="Gráfico de linha comparando chamados abertos e fechados por dia, últimos 7 dias">
+        <line x1="0" y1="{{ fluxo_svg.linha_base_y }}" x2="{{ fluxo_svg.largura }}" y2="{{ fluxo_svg.linha_base_y }}" stroke="var(--card-border)" stroke-width="1" />
+        <polyline points="{{ fluxo_svg.pontos_fechados }}" fill="none" stroke="#6c757d" stroke-width="2.5" />
+        <polyline points="{{ fluxo_svg.pontos_abertos }}" fill="none" stroke="var(--bs-primary)" stroke-width="2.5" />
+    </svg>
+    <div class="d-flex justify-content-between small text-muted mt-1">
+        {% for ponto in fluxo_diario %}
+            <span>{{ ponto.dia|date:"d/m" }}</span>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

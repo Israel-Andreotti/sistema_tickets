@@ -1,0 +1,889 @@
+<title>Regras de Negócio e Diagrama ER — Chamados de TI Hospitalar</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --surface-2: #eef0f3;
+    --text: #131a22;
+    --text-muted: #5b6672;
+    --border: #e1e4e9;
+    --accent: #0e6e68;
+    --accent-soft: #dcecea;
+    --accent-ink: #073e3a;
+    --warn: #96650a;
+    --warn-soft: #f4e9d3;
+    --crit: #a4342c;
+    --crit-soft: #f6e0dd;
+    --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, "Liberation Mono", monospace;
+    --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10151a;
+      --surface: #171e25;
+      --surface-2: #1d252d;
+      --text: #e7ecef;
+      --text-muted: #93a0ac;
+      --border: #29323b;
+      --accent: #4fc1b8;
+      --accent-soft: #1b3835;
+      --accent-ink: #bdece6;
+      --warn: #e0b25a;
+      --warn-soft: #3a2f18;
+      --crit: #e2857c;
+      --crit-soft: #3a201d;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10151a;
+    --surface: #171e25;
+    --surface-2: #1d252d;
+    --text: #e7ecef;
+    --text-muted: #93a0ac;
+    --border: #29323b;
+    --accent: #4fc1b8;
+    --accent-soft: #1b3835;
+    --accent-ink: #bdece6;
+    --warn: #e0b25a;
+    --warn-soft: #3a2f18;
+    --crit: #e2857c;
+    --crit-soft: #3a201d;
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --surface-2: #eef0f3;
+    --text: #131a22;
+    --text-muted: #5b6672;
+    --border: #e1e4e9;
+    --accent: #0e6e68;
+    --accent-soft: #dcecea;
+    --accent-ink: #073e3a;
+    --warn: #96650a;
+    --warn-soft: #f4e9d3;
+    --crit: #a4342c;
+    --crit-soft: #f6e0dd;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: var(--accent); }
+
+  .page {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 3.5rem 1.5rem 6rem;
+  }
+
+  header.doc-header {
+    margin-bottom: 2.6rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 0.9rem;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: clamp(1.8rem, 1.4rem + 1.6vw, 2.5rem);
+    line-height: 1.15;
+    margin: 0 0 0.6rem;
+    text-wrap: balance;
+    color: var(--text);
+  }
+
+  .doc-sub {
+    font-size: 1.02rem;
+    color: var(--text-muted);
+    max-width: 64ch;
+    margin: 0 0 1.1rem;
+  }
+
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.1rem;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--text-muted);
+  }
+
+  .meta-row span strong { color: var(--text); font-weight: 600; }
+
+  /* ---- table of contents ---- */
+
+  nav.toc {
+    margin-bottom: 3.2rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.1rem 1.3rem;
+  }
+
+  nav.toc p {
+    margin: 0 0 0.7rem;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .toc-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem 1.5rem;
+  }
+
+  .toc-grid a {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.6rem;
+    text-decoration: none;
+    color: var(--text);
+    font-size: 0.92rem;
+    padding: 0.2rem 0;
+    border-bottom: 1px dotted transparent;
+  }
+
+  .toc-grid a:hover { border-bottom-color: var(--accent); }
+
+  .toc-grid a span.toc-range {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+
+  @media (max-width: 620px) {
+    .toc-grid { grid-template-columns: 1fr; }
+  }
+
+  section { margin-bottom: 3.2rem; }
+
+  h2 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 1.5rem;
+    margin: 0 0 0.4rem;
+    text-wrap: balance;
+  }
+
+  .section-intro {
+    color: var(--text-muted);
+    max-width: 68ch;
+    margin: 0 0 1.4rem;
+  }
+
+  .section-intro code, p code, li code {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.05em 0.35em;
+  }
+
+  /* ---- ER diagram panel ---- */
+
+  .diagram-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.1rem;
+    overflow-x: auto;
+  }
+
+  .diagram-panel pre.mermaid {
+    margin: 0;
+    min-width: 720px;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.6rem;
+    margin-top: 0.9rem;
+    padding-top: 0.9rem;
+    border-top: 1px dashed var(--border);
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    color: var(--text-muted);
+  }
+
+  .legend b { color: var(--text); font-weight: 600; }
+
+  .note-callout {
+    margin-top: 1.1rem;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    border-left: 3px solid var(--border);
+    padding: 0.15rem 0 0.15rem 0.9rem;
+  }
+
+  /* ---- RN subsection divider ---- */
+
+  .rn-subhead {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin: 2.4rem 0 1.5rem;
+  }
+
+  .rn-subhead:first-of-type { margin-top: 0.4rem; }
+
+  .rn-subhead .line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .rn-subhead span.label {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  /* ---- RN theme groups ---- */
+
+  .rn-group {
+    margin-bottom: 2.1rem;
+    scroll-margin-top: 1.5rem;
+  }
+
+  .rn-group-title {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    margin: 0 0 0.9rem;
+  }
+
+  .rn-group-title h3 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 1.15rem;
+    margin: 0;
+  }
+
+  .rn-group-title .rn-range {
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 999px;
+    padding: 0.15rem 0.6rem;
+  }
+
+  .rn-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+
+  .rn-item {
+    display: grid;
+    grid-template-columns: 2.9rem 1fr;
+    gap: 0.9rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.95rem 1.1rem;
+  }
+
+  .rn-num {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--accent-ink);
+    background: var(--accent-soft);
+    border-radius: 6px;
+    height: fit-content;
+    padding: 0.15rem 0;
+    text-align: center;
+  }
+
+  .rn-body p {
+    margin: 0 0 0.4rem;
+  }
+
+  .rn-title {
+    font-weight: 600;
+    margin: 0 0 0.25rem;
+    color: var(--text);
+  }
+
+  .rn-file {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.08em 0.45em;
+    margin-top: 0.15rem;
+  }
+
+  footer.doc-footer {
+    margin-top: 3.5rem;
+    padding-top: 1.4rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.82rem;
+    color: var(--text-muted);
+  }
+
+  @media (max-width: 620px) {
+    .rn-item { grid-template-columns: 1fr; }
+    .rn-num { width: fit-content; padding: 0.1rem 0.5rem; }
+  }
+</style>
+
+<div class="page">
+
+  <header class="doc-header">
+    <p class="eyebrow">Documentação técnica — TCC</p>
+    <h1>Regras de negócio e diagrama ER do Sistema de Chamados de TI Hospitalar</h1>
+    <p class="doc-sub">
+      Documento único com as 27 regras de negócio do sistema — RN01–RN17, formalizadas desde o
+      início do projeto (classificação, prioridade, SLA, desvio, recomendação), e RN18–RN27,
+      adicionadas na rodada de autenticação, controle de acesso, patrimônio obrigatório e
+      movimentação de equipamento — seguidas do modelo de dados completo.
+    </p>
+    <p class="meta-row">
+      <span>Projeto: <strong>tcc_2.0</strong></span>
+      <span>App Django: <strong>tickets</strong></span>
+      <span>Total de regras: <strong>27</strong></span>
+    </p>
+  </header>
+
+  <nav class="toc" aria-label="Índice de regras de negócio">
+    <p>Índice</p>
+    <div class="toc-grid">
+      <a href="#classificacao"><span>Classificação (dupla checagem)</span><span class="toc-range">RN01–04</span></a>
+      <a href="#prioridade"><span>Cálculo de prioridade</span><span class="toc-range">RN05–07</span></a>
+      <a href="#sla"><span>Controle de SLA</span><span class="toc-range">RN08–10</span></a>
+      <a href="#desvio"><span>Detecção de desvio</span><span class="toc-range">RN11–14</span></a>
+      <a href="#recomendacao"><span>Geração de recomendação</span><span class="toc-range">RN15–17</span></a>
+      <a href="#autenticacao"><span>Autenticação do solicitante</span><span class="toc-range">RN18–20</span></a>
+      <a href="#acesso"><span>Controle de acesso por papel</span><span class="toc-range">RN21–22</span></a>
+      <a href="#patrimonio"><span>Patrimônio obrigatório</span><span class="toc-range">RN23</span></a>
+      <a href="#movimentacao"><span>Movimentação de equipamento</span><span class="toc-range">RN24–27</span></a>
+      <a href="#er"><span>Modelo de dados (ER)</span><span class="toc-range">—</span></a>
+    </div>
+  </nav>
+
+  <section id="regras">
+    <h2>Regras de negócio</h2>
+    <p class="section-intro">
+      Cada regra referencia o arquivo e a função que a implementam, para conferência direta no
+      código.
+    </p>
+
+    <div class="rn-subhead">
+      <span class="label">Regras originais</span>
+      <span class="line"></span>
+      <span class="label">RN01–RN17</span>
+    </div>
+
+    <div class="rn-group" id="classificacao">
+      <div class="rn-group-title">
+        <h3>Classificação (dupla checagem)</h3>
+        <span class="rn-range">RN01–RN04</span>
+      </div>
+      <div class="rn-list">
+        <div class="rn-item">
+          <div class="rn-num">RN01</div>
+          <div class="rn-body">
+            <p class="rn-title">O solicitante escolhe a categoria ao abrir o chamado</p>
+            <p>Ao preencher o formulário de abertura, o solicitante seleciona a <code>Categoria</code>
+            que acha que melhor descreve o problema; essa escolha fica registrada em
+            <code>Ticket.categoria_sugerida</code> e nunca é sobrescrita.</p>
+            <span class="rn-file">tickets/services/classificacao.py · abrir_ticket</span>
+          </div>
+        </div>
+        <div class="rn-item">
+          <div class="rn-num">RN02</div>
+          <div class="rn-body">
+            <p class="rn-title">A IA classifica a partir da descrição, independente da escolha do usuário</p>
+            <p>O classificador (mDeBERTa, integração pendente) analisa o texto livre da descrição e
+            grava sua própria conclusão em <code>Ticket.categoria_ia</code>, sem considerar a
+            categoria que o solicitante marcou.</p>
+            <span class="rn-file">tickets/services/classificacao.py · registrar_classificacao_ia</span>
+          </div>
+        </div>
+        <div class="rn-item">
+          <div class="rn-num">RN03</div>
+          <div class="rn-body">
+            <p class="rn-title">O técnico confirma ou corrige a classificação final</p>
+            <p>Na tela de detalhe do chamado, o técnico vê <code>categoria_sugerida</code> e
+            <code>categoria_ia</code> lado a lado e escolhe a categoria final — pode concordar com
+            qualquer uma das duas ou escolher uma terceira.</p>
+            <span class="rn-file">tickets/services/classificacao.py · confirmar_classificacao_final</span>
+          </div>
+        </div>
+        <div class="rn-item">
+          <div class="rn-num">RN04</div>
+          <div class="rn-body">
+            <p class="rn-title">Só a categoria final alimenta SLA e prioridade</p>
+            <p><code>categoria_sugerida</code> e <code>categoria_ia</code> existem só para a dupla
+            checagem; todo cálculo de SLA esperado e de prioridade usa exclusivamente
+            <code>categoria_final</code>.</p>
+            <span class="rn-file">tickets/services/prioridade.py, tickets/services/sla.py</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rn-group" id="prioridade">
+      <div class="rn-group-title">
+        <h3>Cálculo de prioridade</h3>
+        <span class="rn-range">RN05–RN07</span>
+      </div>
+      <div class="rn-list">
+        <div class="rn-item">
+          <div class="rn-num">RN05</div>
+          <div class="rn-body">
+            <p class="rn-title">Prioridade padrão é peso_categoria × peso_setor</p>
+            <p>A prioridade de um chamado é o produto entre a criticidade da categoria final e a
+            criticidade do setor, ambas de 1 a 5.</p>
+            <span class="rn-file">tickets/services/prioridade.py · calcular_prioridade</span>
+          </div>
+        </div>
+        <div class="rn-item">
+          <div class="rn-num">RN06</div>
+          <div class="rn-body">
+            <p class="rn-title">Exceção de prioridade sobrescreve o cálculo padrão</p>
+            <p>Uma <code>ExcecaoPrioridade</code> cadastrada para a combinação (categoria, setor)
+            substitui o produto dos pesos por um valor manual — evita ter que manter uma matriz
+            completa categoria × setor.</p>
+            <span class="rn-file">tickets/models.py · ExcecaoPrioridade</span>
+          </div>
+        </div>
+        <div class="rn-item">
+          <div class="rn-num">RN07</div>
+          <div class="rn-body">
+            <p class="rn-title">Prioridade recalculada a cada confirmação de classificação</p>
+            <p>Sempre que o técnico confirma ou corrige a <code>categoria_final</code> (RN03), a
+            prioridade é recalculada na hora — nunca fica desatualizada em relação à classificação
+            vigente.</p>
+            <span class="rn-file">tickets/services/classificacao.py · confirmar_classificacao_final</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rn-group" id="sla">
+      <div class="rn-group-title">
+        <h3>Controle de SLA</h3>
+        <span class="rn-range">RN08–RN10</span>
+      </div>
+      <div class="rn-list">
+        <div class="rn-item">
+          <div class="rn-num">RN08</div>
+          <div class="rn-body">
+            <p class="rn-title">SLA esperado vem da categoria final</p>
+            <p>O tempo esperado usado no controle de SLA é sempre <code>categoria_final.sla_horas</code>,
+            nunca um valor fixo ou o SLA da categoria sugerida/IA.</p>
+            <span class="rn-file">tickets/services/sla.py · fechar_ticket</span>
+          </div>
+        </div>
+        <div class="rn-item">
+          <div class="rn-num">RN09</div>
+          <div class="rn-body">
+            <p class="rn-title">Tempo real é a diferença entre abertura e fechamento</p>
+            <p><code>tempo_real = data_fechamento − data_abertura</code>, calculado em horas no
+            momento em que o chamado é fechado.</p>
+            <span class="rn-file">tickets/services/sla.py · fechar_ticket</span>
+          </div>
+        </div>
+        <div class="rn-item">
+          <div class="rn-num">RN10</div>
+          <div class="rn-body">
+            <p class="rn-title">Fechar o chamado grava o histórico de SLA</p>
+            <p>O fechamento cria um <code>HistoricoSLA</code> com tempo real, tempo esperado e o
+            desvio entre os dois; um chamado sem <code>categoria_final</code> não pode ser fechado.</p>
+            <span class="rn-file">tickets/services/sla.py · fechar_ticket</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rn-group" id="desvio">
+      <div class="rn-group-title">
+        <h3>Detecção de desvio</h3>
+        <span class="rn-range">RN11–RN14</span>
+      </div>
+      <div class="rn-list">
+        <div class="rn-item">
+          <div class="rn-num">RN11</div>
+          <div class="rn-body">
+            <p class="rn-title">Desvio é medido em percentual, não em horas absolutas</p>
+            <p><code>percentual = desvio / tempo_esperado × 100</code> — normaliza o atraso em
+            relação ao SLA esperado daquela categoria específica.</p>
+            <span class="rn-file">tickets/services/desvio.py · agregar_desvios_por_categoria_setor</span>
+          </div>
+        </div>
+        <div class="rn-item">
+          <div class="rn-num">RN12</div>
+          <div class="rn-body">
+            <p class="rn-title">Limiares de desvio vêm de ParametroSistema</p>
+            <p>Os percentuais que definem "atenção" (<code>desvio_atencao_pct</code>) e "crítico"
+            (<code>desvio_critico_pct</code>) são parâmetros editáveis pelo admin, nunca constantes
+            no código.</p>
+            <span class="rn-file">tickets/services/desvio.py · classificar_desvio</span>
+          </div>
+        </div>
+        <div class="rn-item">
+          <div class="rn-num">RN13</div>
+          <div class="rn-body">
+            <p class="rn-title">Cada desvio é classificado em três níveis</p>
+            <p><code>classificar_desvio</code> retorna "crítico" acima do limiar crítico, "atenção"
+            entre os dois limiares, ou nenhum quando dentro do SLA.</p>
+            <span class="rn-file">tickets/services/desvio.py · classificar_desvio</span>
+          </div>
+        </div>
+        <div class="rn-item">
+          <div class="rn-num">RN14</div>
+          <div class="rn-body">
+            <p class="rn-title">Desvios são agregados por categoria + setor, não por chamado isolado</p>
+            <p>A base para recomendação é o percentual médio de desvio de uma combinação
+            categoria + setor numa janela de tempo configurável
+            (<code>janela_recomendacao_dias</code>), não o desvio de um único chamado.</p>
+            <span class="rn-file">tickets/services/desvio.py · agregar_desvios_por_categoria_setor</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rn-group" id="recomendacao">
+      <div class="rn-group-title">
+        <h3>Geração de recomendação</h3>
+        <span class="rn-range">RN15–RN17</span>
+      </div>
+      <div class="rn-list">
+        <div class="rn-item">
+          <div class="rn-num">RN15</div>
+          <div class="rn-body">
+            <p class="rn-title">RegraRecomendacao mapeia tipo de desvio para ação sugerida</p>
+            <p>Cada <code>tipo_desvio</code> ("atenção"/"crítico") tem uma regra correspondente com
+            uma ação sugerida em texto livre, editável pelo admin.</p>
+            <span class="rn-file">tickets/models.py · RegraRecomendacao</span>
+          </div>
+        </div>
+        <div class="rn-item">
+          <div class="rn-num">RN16</div>
+          <div class="rn-body">
+            <p class="rn-title">Recomendação exige desvio relevante e volume mínimo de chamados</p>
+            <p>Uma <code>Recomendacao</code> só é gerada quando a agregação categoria + setor
+            ultrapassa o limiar de uma regra e tem pelo menos
+            <code>min_tickets_para_recomendacao</code> chamados fechados na janela — evita
+            recomendar com base num único chamado atípico.</p>
+            <span class="rn-file">tickets/services/recomendacao.py · gerar_recomendacoes</span>
+          </div>
+        </div>
+        <div class="rn-item">
+          <div class="rn-num">RN17</div>
+          <div class="rn-body">
+            <p class="rn-title">Não duplicar recomendação na mesma janela</p>
+            <p>Antes de criar uma <code>Recomendacao</code>, o sistema verifica se já existe uma
+            para a mesma combinação categoria + setor + regra dentro da janela de agregação; se
+            existir, não gera outra.</p>
+            <span class="rn-file">tickets/services/recomendacao.py · gerar_recomendacoes</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rn-subhead">
+      <span class="label">Regras novas</span>
+      <span class="line"></span>
+      <span class="label">RN18–RN27</span>
+    </div>
+
+    <div class="rn-group" id="autenticacao">
+      <div class="rn-group-title">
+        <h3>Autenticação e identidade do solicitante</h3>
+        <span class="rn-range">RN18–RN20</span>
+      </div>
+      <div class="rn-list">
+        <div class="rn-item">
+          <div class="rn-num">RN18</div>
+          <div class="rn-body">
+            <p class="rn-title">Abertura de chamado exige login</p>
+            <p>Usuário anônimo que tentar abrir um chamado é redirecionado para a tela de login;
+            não existe caminho para registrar um ticket sem uma conta autenticada.</p>
+            <span class="rn-file">tickets/views.py · abrir_ticket_view</span>
+          </div>
+        </div>
+        <div class="rn-item">
+          <div class="rn-num">RN19</div>
+          <div class="rn-body">
+            <p class="rn-title">Nome do solicitante vem da conta, não é digitado</p>
+            <p><code>Ticket.solicitante_nome</code> é preenchido a partir do usuário autenticado
+            (nome completo, com o login como alternativa) — o formulário não tem campo de nome.</p>
+            <span class="rn-file">tickets/views.py · abrir_ticket_view</span>
+          </div>
+        </div>
+        <div class="rn-item">
+          <div class="rn-num">RN20</div>
+          <div class="rn-body">
+            <p class="rn-title">IP de origem capturado automaticamente</p>
+            <p>O IP do computador que abriu o chamado é gravado em
+            <code>Ticket.solicitante_ip</code> sem intervenção do usuário, para auditoria — prioriza
+            <code>X-Forwarded-For</code> quando a aplicação está atrás de proxy.</p>
+            <span class="rn-file">tickets/views.py · obter_ip_cliente</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rn-group" id="acesso">
+      <div class="rn-group-title">
+        <h3>Controle de acesso por papel</h3>
+        <span class="rn-range">RN21–RN22</span>
+      </div>
+      <div class="rn-list">
+        <div class="rn-item">
+          <div class="rn-num">RN21</div>
+          <div class="rn-body">
+            <p class="rn-title">Telas de técnico restritas a <code>is_staff</code></p>
+            <p>Fila, detalhe/classificação, fechamento, cadastro e movimentação de equipamento
+            exigem usuário com papel de técnico. Um solicitante comum não vê os links no menu
+            <em>e</em> é bloqueado se acessar a URL diretamente — a restrição está na view, não só
+            na interface.</p>
+            <span class="rn-file">tickets/views.py · tecnico_required</span>
+          </div>
+        </div>
+        <div class="rn-item">
+          <div class="rn-num">RN22</div>
+          <div class="rn-body">
+            <p class="rn-title">Gestor de setor edita só os próprios equipamentos</p>
+            <p><code>Setor.gestor</code> aponta para um usuário responsável por aquele setor. Esse
+            usuário pode editar (não cadastrar) equipamentos lotados nos setores sob sua gestão;
+            tentar editar um equipamento de outro setor resulta em acesso negado (403).</p>
+            <span class="rn-file">tickets/views.py · editar_equipamento_view</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rn-group" id="patrimonio">
+      <div class="rn-group-title">
+        <h3>Patrimônio obrigatório por categoria</h3>
+        <span class="rn-range">RN23</span>
+      </div>
+      <div class="rn-list">
+        <div class="rn-item">
+          <div class="rn-num">RN23</div>
+          <div class="rn-body">
+            <p class="rn-title">Categorias marcadas exigem patrimônio válido na abertura</p>
+            <p><code>Categoria.requer_patrimonio</code> é um interruptor editável pelo admin (hoje
+            ligado nas categorias de impressora, computador, monitor e telefone VoIP). Quando
+            ligado, o solicitante precisa informar um número de patrimônio já cadastrado no CMDB;
+            o ticket é vinculado automaticamente a esse <code>ItemConfiguracao</code>.</p>
+            <span class="rn-file">tickets/forms.py · AbrirTicketForm.clean</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rn-group" id="movimentacao">
+      <div class="rn-group-title">
+        <h3>Movimentação de equipamento</h3>
+        <span class="rn-range">RN24–RN27</span>
+      </div>
+      <div class="rn-list">
+        <div class="rn-item">
+          <div class="rn-num">RN24</div>
+          <div class="rn-body">
+            <p class="rn-title">Saída e entrada são independentes</p>
+            <p>Um ticket registra a movimentação em dois sentidos separados: o equipamento que
+            estava atendendo o setor (saída) e o que passa a atender (entrada). Qualquer um dos
+            dois pode ser informado sozinho — trocar, só devolver, ou só adicionar.</p>
+            <span class="rn-file">tickets/services/equipamento.py · movimentar_equipamento</span>
+          </div>
+        </div>
+        <div class="rn-item">
+          <div class="rn-num">RN25</div>
+          <div class="rn-body">
+            <p class="rn-title">Entrada só aceita equipamento disponível na informática</p>
+            <p>Um equipamento só pode ser adicionado a um ticket se, no momento da movimentação,
+            estiver lotado no setor de TI <em>e</em> com status Ativo — não é possível puxar um
+            equipamento que já está em uso em outro setor ou fora de serviço.</p>
+            <span class="rn-file">tickets/services/equipamento.py · equipamento_elegivel_para_entrada</span>
+          </div>
+        </div>
+        <div class="rn-item">
+          <div class="rn-num">RN26</div>
+          <div class="rn-body">
+            <p class="rn-title">Saída retorna à informática automaticamente</p>
+            <p>Ao sair de um setor, o equipamento tem seu <code>setor</code> alterado para o setor
+            de TI (identificado pelo id configurado em <code>ParametroSistema.setor_ti_id</code>,
+            não fixo no código) e o <code>status</code> muda para "Em manutenção".</p>
+            <span class="rn-file">tickets/services/equipamento.py · movimentar_equipamento</span>
+          </div>
+        </div>
+        <div class="rn-item">
+          <div class="rn-num">RN27</div>
+          <div class="rn-body">
+            <p class="rn-title">Ausência de movimentação exige confirmação explícita</p>
+            <p>Se nenhum patrimônio de saída ou entrada for informado, o técnico precisa marcar a
+            confirmação "não houve movimentação de equipamento" para concluir a etapa — o sistema
+            não aceita o formulário em branco silenciosamente.</p>
+            <span class="rn-file">tickets/views.py · movimentar_equipamento_view</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="er">
+    <h2>Modelo de dados</h2>
+    <p class="section-intro">
+      As três chaves estrangeiras de <code>Ticket</code> para <code>Categoria</code>
+      (<code>categoria_sugerida</code>, <code>categoria_ia</code>, <code>categoria_final</code>)
+      são o registro da dupla checagem de classificação (RN01–RN04). <code>Setor.gestor</code> e o
+      relacionamento com <code>User</code> foram adicionados na rodada de RN18–RN27.
+    </p>
+
+    <div class="diagram-panel">
+<pre class="mermaid">
+erDiagram
+    USER {
+        int id PK
+        string username
+        string first_name
+        string last_name
+        bool is_staff
+    }
+    SETOR {
+        int id PK
+        string nome
+        int peso_setor
+        int gestor_id FK
+    }
+    CATEGORIA {
+        int id PK
+        string nome
+        string grupo
+        int peso_categoria
+        decimal sla_horas
+        bool requer_patrimonio
+    }
+    EXCECAO_PRIORIDADE {
+        int id PK
+        int categoria_id FK
+        int setor_id FK
+        int peso_override
+    }
+    ITEM_CONFIGURACAO {
+        int id PK
+        string patrimonio UK
+        string categoria
+        string marca
+        string modelo
+        int setor_id FK
+        string status
+        date data_aquisicao
+    }
+    TICKET {
+        int id PK
+        int categoria_sugerida_id FK
+        int categoria_ia_id FK
+        int categoria_final_id FK
+        int setor_id FK
+        string solicitante_nome
+        string solicitante_ramal
+        string solicitante_sala
+        string solicitante_ip
+        int item_configuracao_id FK
+        text descricao
+        string status
+        int prioridade_calculada
+        datetime data_abertura
+        datetime data_fechamento
+    }
+    HISTORICO_SLA {
+        int id PK
+        int ticket_id FK
+        decimal tempo_real
+        decimal tempo_esperado
+        decimal desvio
+    }
+    PARAMETRO_SISTEMA {
+        string chave PK
+        string valor
+        string descricao
+    }
+    REGRA_RECOMENDACAO {
+        int id PK
+        string tipo_desvio
+        string condicao
+        text acao_sugerida
+    }
+    RECOMENDACAO {
+        int id PK
+        int categoria_id FK
+        int setor_id FK
+        int regra_id FK
+        datetime data_gerada
+    }
+
+    USER ||--o{ SETOR : "gerencia (gestor)"
+    SETOR ||--o{ EXCECAO_PRIORIDADE : "setor"
+    CATEGORIA ||--o{ EXCECAO_PRIORIDADE : "categoria"
+    SETOR ||--o{ ITEM_CONFIGURACAO : "lotado em"
+    SETOR ||--o{ TICKET : "setor"
+    CATEGORIA ||--o{ TICKET : "categoria_sugerida"
+    CATEGORIA ||--o{ TICKET : "categoria_ia"
+    CATEGORIA ||--o{ TICKET : "categoria_final"
+    ITEM_CONFIGURACAO |o--o{ TICKET : "equipamento vinculado"
+    TICKET ||--|| HISTORICO_SLA : "gera"
+    CATEGORIA ||--o{ RECOMENDACAO : "categoria"
+    SETOR ||--o{ RECOMENDACAO : "setor"
+    REGRA_RECOMENDACAO ||--o{ RECOMENDACAO : "regra"
+</pre>
+      <div class="legend">
+        <span><b>||--o{</b> um-para-muitos, obrigatório</span>
+        <span><b>|o--o{</b> um-para-muitos, opcional (FK nullable)</span>
+        <span><b>||--||</b> um-para-um</span>
+        <span><b>PK</b> chave primária</span>
+        <span><b>FK</b> chave estrangeira</span>
+        <span><b>UK</b> único</span>
+      </div>
+      <p class="note-callout">
+        <code>ParametroSistema</code> não tem chave estrangeira no banco — é lido por chave/valor
+        pelos serviços (ex.: <code>setor_ti_id</code>, referenciada em RN26, aponta logicamente
+        para <code>Setor.id</code>). Por isso não aparece ligado a nada no diagrama, embora
+        participe das regras acima.
+      </p>
+    </div>
+  </section>
+
+  <footer class="doc-footer">
+    Gerado a partir do estado atual de <code>tickets/models.py</code>, <code>tickets/services/</code>,
+    <code>tickets/forms.py</code> e <code>tickets/views.py</code> no diretório <code>tcc_2.0</code>.
+  </footer>
+
+</div>

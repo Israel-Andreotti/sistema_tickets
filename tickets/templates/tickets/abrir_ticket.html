@@ -1,0 +1,354 @@
+{% extends "tickets/base.html" %}
+
+{% block title %}Abrir chamado — Chamados de TI{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h1 class="h4 card-title mb-1">Abrir chamado de TI</h1>
+                <p class="text-muted small mb-3">
+                    Abrindo como <strong>{{ user.get_full_name|default:user.username }}</strong>
+                </p>
+
+                <form method="post" novalidate id="formAbrirChamado">
+                    {% csrf_token %}
+
+                    <h2 class="h6 text-muted text-uppercase small mb-3" style="letter-spacing: 0.05em;">Suas informações</h2>
+
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label for="{{ form.solicitante_nome.id_for_label }}" class="form-label">
+                                {{ form.solicitante_nome.label }} <span class="text-danger">*</span>
+                            </label>
+                            {{ form.solicitante_nome }}
+                            {% for error in form.solicitante_nome.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+
+                        <div class="col-md-3 mb-3">
+                            <label for="{{ form.solicitante_ramal.id_for_label }}" class="form-label">
+                                {{ form.solicitante_ramal.label }} <span class="text-danger">*</span>
+                            </label>
+                            {{ form.solicitante_ramal }}
+                            {% for error in form.solicitante_ramal.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+
+                        <div class="col-md-3 mb-3">
+                            <label for="{{ form.solicitante_sala.id_for_label }}" class="form-label">
+                                {{ form.solicitante_sala.label }} <span class="text-danger">*</span>
+                            </label>
+                            {{ form.solicitante_sala }}
+                            {% for error in form.solicitante_sala.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+
+                        <div class="col-md-3 mb-3 position-relative">
+                            <label for="setorBusca" class="form-label">
+                                {{ form.setor.label }} <span class="text-danger">*</span>
+                            </label>
+                            <input
+                                type="text" id="setorBusca" class="form-control"
+                                placeholder="Digite para buscar..." autocomplete="off">
+                            <div
+                                id="setorSugestoes" class="list-group d-none"
+                                style="position: absolute; z-index: 1050; max-height: 220px; overflow-y: auto; width: 100%;">
+                            </div>
+                            {{ form.setor }}
+                            {% for error in form.setor.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <h2 class="h6 text-muted text-uppercase small mb-3" style="letter-spacing: 0.05em;">Sobre o problema</h2>
+
+                    <div class="mb-3">
+                        <label for="{{ form.grupo.id_for_label }}" class="form-label">
+                            {{ form.grupo.label }} <span class="text-danger">*</span>
+                        </label>
+                        {{ form.grupo }}
+                        <div class="form-text">{{ form.grupo.help_text }}</div>
+                        {% for error in form.grupo.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.categoria_sugerida.id_for_label }}" class="form-label">
+                            {{ form.categoria_sugerida.label }} <span class="text-danger">*</span>
+                        </label>
+                        {{ form.categoria_sugerida }}
+                        {% for error in form.categoria_sugerida.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mb-3 d-none" id="campo-patrimonio">
+                        <label for="{{ form.patrimonio.id_for_label }}" class="form-label">
+                            {{ form.patrimonio.label }}
+                        </label>
+                        {{ form.patrimonio }}
+                        <div class="form-text">Obrigatório para chamados sobre um equipamento específico.</div>
+                        {% for error in form.patrimonio.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.impacto.id_for_label }}" class="form-label">
+                            {{ form.impacto.label }} <span class="text-danger">*</span>
+                        </label>
+                        {{ form.impacto }}
+                        <div class="form-text">{{ form.impacto.help_text }}</div>
+                        {% for error in form.impacto.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="{{ form.descricao.id_for_label }}" class="form-label">
+                            {{ form.descricao.label }} <span class="text-danger">*</span>
+                        </label>
+                        <div class="form-text mt-0 mb-2">{{ form.descricao.help_text }}</div>
+                        {{ form.descricao }}
+                        {% for error in form.descricao.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+
+                        <div id="sugestoesArtigos" class="d-none mt-3">
+                            <div class="kv-label mb-2">Talvez isso ajude a resolver sem abrir chamado:</div>
+                            <div id="listaSugestoesArtigos" class="d-flex flex-column gap-2"></div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-center">
+                        <button type="submit" id="botaoAbrirChamado" class="btn btn-primary btn-lg px-5">
+                            <span id="botaoAbrirChamadoTexto">Abrir chamado</span>
+                            <span id="botaoAbrirChamadoSpinner" class="spinner-border spinner-border-sm ms-2 d-none" role="status" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var grupoSelect = document.getElementById('{{ form.grupo.id_for_label }}');
+    var categoriaSelect = document.getElementById('{{ form.categoria_sugerida.id_for_label }}');
+    var campoPatrimonio = document.getElementById('campo-patrimonio');
+    var inputPatrimonio = document.getElementById('{{ form.patrimonio.id_for_label }}');
+
+    function atualizarVisibilidade() {
+        var opcaoSelecionada = categoriaSelect.options[categoriaSelect.selectedIndex];
+        var requerPatrimonio = opcaoSelecionada ? opcaoSelecionada.getAttribute('data-requer-patrimonio') : null;
+        if (requerPatrimonio === 'true') {
+            campoPatrimonio.classList.remove('d-none');
+        } else {
+            campoPatrimonio.classList.add('d-none');
+            inputPatrimonio.value = '';
+        }
+    }
+
+    // Guarda a ordem original (alfabética) das categorias, pra poder
+    // reordenar sem perder nenhuma opção quando o grupo muda.
+    var opcaoPlaceholder = categoriaSelect.options[0];
+    var opcoesOriginais = Array.prototype.slice.call(categoriaSelect.options, 1);
+
+    function priorizarPorGrupo() {
+        var grupoEscolhido = grupoSelect.value;
+        var valorAtual = categoriaSelect.value;
+
+        categoriaSelect.innerHTML = '';
+        categoriaSelect.appendChild(opcaoPlaceholder);
+
+        if (!grupoEscolhido) {
+            opcoesOriginais.forEach(function (opcao) { categoriaSelect.appendChild(opcao); });
+        } else {
+            var doGrupo = opcoesOriginais.filter(function (o) { return o.getAttribute('data-grupo') === grupoEscolhido; });
+            var outras = opcoesOriginais.filter(function (o) { return o.getAttribute('data-grupo') !== grupoEscolhido; });
+            var labelGrupo = grupoSelect.options[grupoSelect.selectedIndex].text;
+
+            var optgroupDoGrupo = document.createElement('optgroup');
+            optgroupDoGrupo.label = labelGrupo;
+            doGrupo.forEach(function (opcao) { optgroupDoGrupo.appendChild(opcao); });
+
+            var optgroupOutras = document.createElement('optgroup');
+            optgroupOutras.label = 'Outras categorias';
+            outras.forEach(function (opcao) { optgroupOutras.appendChild(opcao); });
+
+            categoriaSelect.appendChild(optgroupDoGrupo);
+            categoriaSelect.appendChild(optgroupOutras);
+        }
+
+        categoriaSelect.value = valorAtual;
+    }
+
+    grupoSelect.addEventListener('change', priorizarPorGrupo);
+    categoriaSelect.addEventListener('change', atualizarVisibilidade);
+    atualizarVisibilidade();
+
+    // Busca de setor: o <select> real fica escondido (d-none) e continua
+    // sendo o que é de fato enviado no formulário; o campo de texto só
+    // filtra a lista de sugestões e, ao escolher uma, preenche o select.
+    var setorSelect = document.getElementById('id_setor');
+    var setorBusca = document.getElementById('setorBusca');
+    var setorSugestoes = document.getElementById('setorSugestoes');
+    var opcoesSetor = Array.prototype.slice.call(setorSelect.options, 1).map(function (opcao) {
+        return { valor: opcao.value, texto: opcao.text };
+    });
+    var itensAtuais = [];
+    var indiceAtivo = -1;
+
+    function fecharSugestoesSetor() {
+        setorSugestoes.classList.add('d-none');
+        setorSugestoes.innerHTML = '';
+        itensAtuais = [];
+        indiceAtivo = -1;
+    }
+
+    function selecionarSetor(item) {
+        setorSelect.value = item.valor;
+        setorBusca.value = item.texto;
+        fecharSugestoesSetor();
+    }
+
+    function destacarSugestaoAtiva() {
+        Array.prototype.forEach.call(setorSugestoes.children, function (el, indice) {
+            el.classList.toggle('active', indice === indiceAtivo);
+        });
+    }
+
+    function renderizarSugestoesSetor(lista) {
+        itensAtuais = lista;
+        indiceAtivo = -1;
+        setorSugestoes.innerHTML = '';
+        if (!lista.length) {
+            fecharSugestoesSetor();
+            return;
+        }
+        lista.forEach(function (item) {
+            var botao = document.createElement('button');
+            botao.type = 'button';
+            botao.className = 'list-group-item list-group-item-action';
+            botao.textContent = item.texto;
+            botao.addEventListener('mousedown', function (evento) {
+                evento.preventDefault();
+                selecionarSetor(item);
+            });
+            setorSugestoes.appendChild(botao);
+        });
+        setorSugestoes.classList.remove('d-none');
+    }
+
+    setorBusca.addEventListener('input', function () {
+        setorSelect.value = '';
+        var termo = setorBusca.value.trim().toLowerCase();
+        if (!termo) {
+            fecharSugestoesSetor();
+            return;
+        }
+        renderizarSugestoesSetor(opcoesSetor.filter(function (item) {
+            return item.texto.toLowerCase().indexOf(termo) !== -1;
+        }));
+    });
+
+    setorBusca.addEventListener('keydown', function (evento) {
+        if (!itensAtuais.length) return;
+        if (evento.key === 'ArrowDown') {
+            evento.preventDefault();
+            indiceAtivo = Math.min(indiceAtivo + 1, itensAtuais.length - 1);
+            destacarSugestaoAtiva();
+        } else if (evento.key === 'ArrowUp') {
+            evento.preventDefault();
+            indiceAtivo = Math.max(indiceAtivo - 1, 0);
+            destacarSugestaoAtiva();
+        } else if (evento.key === 'Enter' && indiceAtivo >= 0) {
+            evento.preventDefault();
+            selecionarSetor(itensAtuais[indiceAtivo]);
+        } else if (evento.key === 'Escape') {
+            fecharSugestoesSetor();
+        }
+    });
+
+    setorBusca.addEventListener('blur', function () {
+        setTimeout(fecharSugestoesSetor, 150);
+    });
+
+    if (setorSelect.value) {
+        var setorJaSelecionado = opcoesSetor.filter(function (item) { return item.valor === setorSelect.value; })[0];
+        if (setorJaSelecionado) setorBusca.value = setorJaSelecionado.texto;
+    }
+
+    // Sugestão de artigos da base de conhecimento a partir da descrição
+    // digitada, antes de enviar o chamado.
+    var campoDescricao = document.getElementById('{{ form.descricao.id_for_label }}');
+    var painelSugestoesArtigos = document.getElementById('sugestoesArtigos');
+    var listaSugestoesArtigos = document.getElementById('listaSugestoesArtigos');
+    var timerSugestoesArtigos = null;
+
+    function buscarSugestoesArtigos() {
+        var termo = campoDescricao.value.trim();
+        if (termo.length < 5) {
+            painelSugestoesArtigos.classList.add('d-none');
+            return;
+        }
+        fetch('{% url "tickets:sugestoes_artigos" %}?q=' + encodeURIComponent(termo))
+            .then(function (resp) { return resp.json(); })
+            .then(function (dados) {
+                if (!dados.artigos.length) {
+                    painelSugestoesArtigos.classList.add('d-none');
+                    return;
+                }
+                listaSugestoesArtigos.innerHTML = '';
+                dados.artigos.forEach(function (artigo) {
+                    var link = document.createElement('a');
+                    link.href = artigo.url;
+                    link.target = '_blank';
+                    link.rel = 'noopener';
+                    link.className = 'card card-body py-2 text-decoration-none text-reset';
+
+                    var titulo = document.createElement('div');
+                    titulo.className = 'small fw-semibold';
+                    titulo.textContent = '📄 ' + artigo.titulo;
+                    link.appendChild(titulo);
+
+                    if (artigo.resumo) {
+                        var resumo = document.createElement('div');
+                        resumo.className = 'small text-muted';
+                        resumo.textContent = artigo.resumo;
+                        link.appendChild(resumo);
+                    }
+
+                    listaSugestoesArtigos.appendChild(link);
+                });
+                painelSugestoesArtigos.classList.remove('d-none');
+            });
+    }
+
+    campoDescricao.addEventListener('input', function () {
+        clearTimeout(timerSugestoesArtigos);
+        timerSugestoesArtigos = setTimeout(buscarSugestoesArtigos, 400);
+    });
+
+    var formulario = document.getElementById('formAbrirChamado');
+    var botao = document.getElementById('botaoAbrirChamado');
+    var botaoTexto = document.getElementById('botaoAbrirChamadoTexto');
+    var botaoSpinner = document.getElementById('botaoAbrirChamadoSpinner');
+    formulario.addEventListener('submit', function () {
+        botao.disabled = true;
+        botaoTexto.textContent = 'Abrindo chamado...';
+        botaoSpinner.classList.remove('d-none');
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m venv .venv)",
+      "Bash(./.venv/Scripts/python.exe -m pip install --upgrade pip -q)",
+      "Bash(./.venv/Scripts/python.exe -m pip install django psycopg2-binary python-decouple -q)",
+      "Bash(./.venv/Scripts/python.exe -m django --version)",
+      "Bash(rm tickets/models.py)",
+      "Bash(mv models.py tickets/models.py)",
+      "Bash(where psql *)",
+      "Bash(where pg_config)",
+      "Bash(sc query *)",
+      "Bash(Get-Service)",
+      "Bash(./.venv/Scripts/python.exe manage.py check)",
+      "Bash(./.venv/Scripts/python.exe manage.py runserver 8000)",
+      "Read(//tmp/**)",
+      "Bash(kill %1)",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Program Files/PostgreSQL/**)",
+      "Bash(where docker *)",
+      "Bash(where winget *)",
+      "Read(//c/Program Files/PostgreSQL/18/data/**)",
+      "Bash(grep -v \"^$\")",
+      "Bash(\"/c/Program Files/PostgreSQL/18/bin/psql.exe\" --version)",
+      "Bash(./.venv/Scripts/python.exe manage.py migrate)",
+      "Bash(./.venv/Scripts/python.exe -c ' *)",
+      "Bash(nohup ./.venv/Scripts/python.exe manage.py runserver 8000)"
+    ]
+  }
+}

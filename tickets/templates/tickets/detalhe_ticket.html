@@ -1,0 +1,400 @@
+{% extends "tickets/base.html" %}
+{% load ticket_extras %}
+
+{% block title %}Chamado #{{ ticket.pk }} — Chamados de TI{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <a href="{% url 'tickets:fila_tickets' %}" class="link-secondary small">&larr; Voltar para a fila</a>
+
+        <!-- Detalhes do chamado -->
+        <div class="card shadow-sm mt-2 mb-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <h1 class="h4 card-title mb-0">Chamado #{{ ticket.pk }}</h1>
+                    <span class="badge {% if ticket.status == 'aberto' %}bg-warning text-dark{% elif ticket.status == 'em_atendimento' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                        {{ ticket.get_status_display }}
+                    </span>
+                </div>
+
+                <div class="kv-grid mb-4">
+                    <div>
+                        <div class="kv-label">Solicitante</div>
+                        <div class="kv-value">{{ ticket.solicitante_nome }} — ramal {{ ticket.solicitante_ramal }}, sala {{ ticket.solicitante_sala }}</div>
+                    </div>
+                    <div>
+                        <div class="kv-label">IP de origem</div>
+                        <div class="kv-value">{{ ticket.solicitante_ip|default:"não capturado" }}</div>
+                    </div>
+                    <div>
+                        <div class="kv-label">Setor</div>
+                        <div class="kv-value">{{ ticket.setor }}</div>
+                    </div>
+                    <div>
+                        <div class="kv-label">Nível de atendimento</div>
+                        <div class="kv-value">{{ ticket.get_impacto_display }}</div>
+                    </div>
+                    <div>
+                        <div class="kv-label">Prioridade</div>
+                        <div class="kv-value">{{ ticket.prioridade_calculada|default:"ainda não calculada" }}</div>
+                    </div>
+                </div>
+
+                <div class="kv-label mb-1">Descrição</div>
+                <div class="description-box">{{ ticket.descricao }}</div>
+            </div>
+        </div>
+
+        <!-- Atribuição do técnico -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <h2 class="h6 mb-3">Atribuição do técnico</h2>
+
+                <div class="kv-label mb-1">Responsável atual</div>
+                <p class="kv-value mb-3">
+                    {% if ticket.tecnico_responsavel %}
+                        {{ ticket.tecnico_responsavel.get_full_name|default:ticket.tecnico_responsavel.username }}
+                    {% else %}
+                        <span class="text-muted">Nenhum técnico atribuído ainda</span>
+                    {% endif %}
+                </p>
+
+                <form method="post" action="{% url 'tickets:atribuir_tecnico' ticket.pk %}" novalidate>
+                    {% csrf_token %}
+                    <label for="tecnico_id" class="form-label">
+                        {% if ticket.tecnico_responsavel %}Reatribuir para{% else %}Atribuir para{% endif %}
+                    </label>
+                    <div class="input-group">
+                        <select name="tecnico_id" id="tecnico_id" class="form-select">
+                            <option value="">Selecione um técnico...</option>
+                            {% for tecnico in tecnicos %}
+                                <option value="{{ tecnico.pk }}" {% if ticket.tecnico_responsavel_id == tecnico.pk %}selected{% endif %}>
+                                    {{ tecnico.get_full_name|default:tecnico.username }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-primary">
+                            {% if ticket.tecnico_responsavel %}Reatribuir{% else %}Atribuir{% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Classificação e equipamento -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <h2 class="h6 mb-3">Classificação e equipamento</h2>
+
+                <div class="kv-label mb-2">Dupla checagem de classificação</div>
+                <div class="two-col-grid mb-3">
+                    <div class="compare-box">
+                        <div class="kv-label">Categoria escolhida pelo solicitante</div>
+                        <div class="kv-value">{{ ticket.categoria_sugerida }}</div>
+                    </div>
+                    <div class="compare-box">
+                        <div class="kv-label">Categoria classificada pela IA</div>
+                        <div class="kv-value">{{ ticket.categoria_ia|default:"ainda não classificado pela IA" }}</div>
+                    </div>
+                </div>
+
+                <form method="post" action="{% url 'tickets:classificar_ticket' ticket.pk %}" class="mb-4" novalidate>
+                    {% csrf_token %}
+                    <label for="{{ form.categoria_final.id_for_label }}" class="form-label">
+                        {{ form.categoria_final.label }}
+                    </label>
+                    <div class="input-group">
+                        {{ form.categoria_final }}
+                        <button type="submit" class="btn btn-primary">Confirmar classificação</button>
+                    </div>
+                    {% for error in form.categoria_final.errors %}
+                        <div class="text-danger small">{{ error }}</div>
+                    {% endfor %}
+                </form>
+
+                <hr>
+
+                <div class="kv-label mb-2">Equipamento vinculado</div>
+                {% if ticket.item_configuracao %}
+                <p class="kv-value">
+                    {{ ticket.item_configuracao.patrimonio }} —
+                    {{ ticket.item_configuracao.get_categoria_display }}
+                    {{ ticket.item_configuracao.marca }} {{ ticket.item_configuracao.modelo }}
+                </p>
+                {% else %}
+                <p class="text-muted small">Nenhum equipamento vinculado a este chamado ainda.</p>
+                {% endif %}
+
+                {% if ticket.status != 'fechado' %}
+                <form method="post" action="{% url 'tickets:movimentar_equipamento' ticket.pk %}" class="mt-2" novalidate>
+                    {% csrf_token %}
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            <label for="patrimonio_saida" class="form-label small mb-1">Patrimônio que está saindo (retorna para a informática)</label>
+                            <div class="input-group input-group-sm">
+                                <input
+                                    type="text" name="patrimonio_saida" id="patrimonio_saida"
+                                    class="form-control form-control-sm" maxlength="6" placeholder="6 dígitos"
+                                    value="{% if patrimonio_saida_valor is not None %}{{ patrimonio_saida_valor }}{% else %}{{ ticket.item_configuracao.patrimonio|default:'' }}{% endif %}"
+                                    data-consulta="saida">
+                                <button type="button" class="btn btn-outline-primary" data-limpar="patrimonio_saida" title="Remover" aria-label="Remover patrimônio de saída">✕</button>
+                            </div>
+                            <div id="info-patrimonio_saida"></div>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <label for="patrimonio_entrada" class="form-label small mb-1">Patrimônio que está entrando</label>
+                            <div class="input-group input-group-sm">
+                                <input
+                                    type="text" name="patrimonio_entrada" id="patrimonio_entrada"
+                                    class="form-control form-control-sm" maxlength="6" placeholder="6 dígitos"
+                                    value="{{ patrimonio_entrada_valor|default:'' }}"
+                                    data-consulta="entrada">
+                                <button type="button" class="btn btn-outline-primary" data-limpar="patrimonio_entrada" title="Remover" aria-label="Remover patrimônio de entrada">✕</button>
+                            </div>
+                            <div id="info-patrimonio_entrada"></div>
+                        </div>
+                    </div>
+                    <div class="form-text mb-2">
+                        Só é possível adicionar equipamentos lotados na informática e com situação Disponível.
+                        Deixe um dos campos em branco para só devolver ou só vincular.
+                    </div>
+
+                    <div class="form-check mb-2">
+                        <input type="checkbox" name="sem_movimentacao" id="sem_movimentacao" class="form-check-input">
+                        <label for="sem_movimentacao" class="form-check-label small">
+                            Não houve movimentação de equipamento neste atendimento
+                        </label>
+                    </div>
+
+                    <button type="submit" class="btn btn-outline-primary btn-sm">Movimentar equipamento</button>
+                </form>
+                {% endif %}
+
+                {% if movimentacoes %}
+                <hr>
+                <div class="kv-label mb-2">Histórico de movimentações</div>
+                <ul class="timeline">
+                    {% for mov in movimentacoes %}
+                    <li class="timeline-item">
+                        <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
+                            <span class="badge bg-{{ mov.badge_classe }}{% if mov.badge_classe == 'info' or mov.badge_classe == 'warning' %} text-dark{% endif %}">{{ mov.badge_label }}</span>
+                            <span class="small text-muted">
+                                {{ mov.autor.get_full_name|default:mov.autor.username }} — {{ mov.criado_em|date:"d/m/Y H:i" }}
+                            </span>
+                        </div>
+
+                        {% if mov.equipamento_saida %}
+                        <div class="small mb-1">
+                            <strong>{{ mov.equipamento_saida.patrimonio }}</strong>
+                            ({{ mov.equipamento_saida.get_categoria_display }} {{ mov.equipamento_saida.marca }} {{ mov.equipamento_saida.modelo }})
+                            <div class="timeline-transicao">{{ ticket.setor }} ➔ {{ setor_ti }}</div>
+                        </div>
+                        {% endif %}
+
+                        {% if mov.equipamento_entrada %}
+                        <div class="small">
+                            <strong>{{ mov.equipamento_entrada.patrimonio }}</strong>
+                            ({{ mov.equipamento_entrada.get_categoria_display }} {{ mov.equipamento_entrada.marca }} {{ mov.equipamento_entrada.modelo }})
+                            <div class="timeline-transicao">{{ setor_ti }} ➔ {{ ticket.setor }}</div>
+                        </div>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Comentários e desfecho -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <h2 class="h6 mb-3">Comentários e desfecho</h2>
+
+                {% if comentarios %}
+                <div class="d-flex flex-column gap-2 mb-3">
+                    {% for comentario in comentarios %}
+                    {% with nome=comentario.autor.get_full_name|default:comentario.autor.username %}
+                    <div class="d-flex align-items-start gap-2">
+                        <span class="avatar-circle" style="background-color: {{ nome|cor_avatar }};">{{ nome|iniciais }}</span>
+                        <div class="comment-card tipo-{{ comentario.tipo }} flex-grow-1">
+                            <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
+                                <strong class="small">{{ nome }}</strong>
+                                <span class="badge bg-{{ comentario.badge_classe }}{% if comentario.badge_classe == 'info' or comentario.badge_classe == 'warning' %} text-dark{% endif %}">
+                                    {{ comentario.badge_emoji }} {{ comentario.badge_label }}
+                                </span>
+                                <span class="small text-muted">{{ comentario.criado_em|date:"d/m/Y H:i" }}</span>
+                            </div>
+                            <div>{{ comentario.texto|linebreaksbr }}</div>
+                        </div>
+                    </div>
+                    {% endwith %}
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted small">Nenhum comentário registrado ainda.</p>
+                {% endif %}
+
+                <form method="post" action="{% url 'tickets:adicionar_comentario' ticket.pk %}" novalidate>
+                    {% csrf_token %}
+                    <div class="btn-group mb-2" role="group" aria-label="Tipo de comentário">
+                        <input type="radio" class="btn-check" name="tipo" id="tipo_nota_interna" value="nota_interna" autocomplete="off" checked>
+                        <label class="btn btn-outline-warning btn-sm" for="tipo_nota_interna">🔒 Nota interna</label>
+
+                        <input type="radio" class="btn-check" name="tipo" id="tipo_resposta_usuario" value="resposta_usuario" autocomplete="off">
+                        <label class="btn btn-outline-info btn-sm" for="tipo_resposta_usuario">💬 Resposta ao usuário</label>
+
+                        <input type="radio" class="btn-check" name="tipo" id="tipo_desfecho" value="desfecho" autocomplete="off">
+                        <label class="btn btn-outline-success btn-sm" for="tipo_desfecho">✅ Desfecho / solução</label>
+                    </div>
+                    {% for error in comentario_form.tipo.errors %}
+                        <div class="text-danger small">{{ error }}</div>
+                    {% endfor %}
+
+                    {{ comentario_form.texto }}
+                    {% for error in comentario_form.texto.errors %}
+                        <div class="text-danger small">{{ error }}</div>
+                    {% endfor %}
+                    <button type="submit" class="btn btn-outline-primary btn-sm mt-2">Adicionar comentário</button>
+                </form>
+
+                {% if ticket.status != 'fechado' %}
+                <hr>
+                <div class="d-flex justify-content-end align-items-center gap-3">
+                    {% if not ticket.categoria_final %}
+                        <div class="form-text mb-0">Confirme a classificação final antes de fechar o chamado.</div>
+                    {% elif not ticket.tecnico_responsavel %}
+                        <div class="form-text mb-0">Atribua um técnico responsável antes de fechar o chamado.</div>
+                    {% elif not ticket.movimentacao_confirmada %}
+                        <div class="form-text mb-0">Registre a movimentação de equipamento (ou confirme que não houve) antes de fechar.</div>
+                    {% endif %}
+                    <button
+                        type="button" class="btn btn-primary" id="botaoFecharChamado"
+                        data-bs-toggle="modal" data-bs-target="#modalFecharChamado"
+                        data-categoria-confirmada="{% if ticket.categoria_final %}true{% else %}false{% endif %}"
+                        data-tecnico-atribuido="{% if ticket.tecnico_responsavel %}true{% else %}false{% endif %}"
+                        data-movimentacao-confirmada="{% if ticket.movimentacao_confirmada %}true{% else %}false{% endif %}"
+                        {% if not ticket.categoria_final or not ticket.tecnico_responsavel or not ticket.movimentacao_confirmada %}disabled{% endif %}>
+                        Fechar chamado
+                    </button>
+                </div>
+
+                <div class="modal fade" id="modalFecharChamado" tabindex="-1" aria-labelledby="modalFecharChamadoLabel" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <form method="post" action="{% url 'tickets:fechar_ticket' ticket.pk %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="confirmar_sem_movimentacao" id="hiddenConfirmarSemMovimentacao" value="">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="modalFecharChamadoLabel">Fechar chamado #{{ ticket.pk }}</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cancelar"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p class="mb-0">
+                                        Tem certeza que deseja fechar este chamado? O SLA final é
+                                        calculado e registrado neste momento, e o chamado sai da fila
+                                        de atendimento.
+                                    </p>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                    <button type="submit" class="btn btn-primary">Confirmar fechamento</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var url = '{% url "tickets:consultar_equipamento" %}';
+
+    document.querySelectorAll('input[data-consulta]').forEach(function (input) {
+        var tipo = input.getAttribute('data-consulta');
+        var info = document.getElementById('info-' + input.id);
+        var timer = null;
+
+        function consultar() {
+            var patrimonio = input.value.trim();
+            if (!patrimonio) {
+                info.innerHTML = '';
+                return;
+            }
+            fetch(url + '?patrimonio=' + encodeURIComponent(patrimonio) + '&ticket={{ ticket.pk }}')
+                .then(function (resp) { return resp.json(); })
+                .then(function (dados) {
+                    var indisponivel = !dados.encontrado ||
+                        (tipo === 'entrada' && !dados.elegivel_entrada) ||
+                        (tipo === 'saida' && !dados.elegivel_saida);
+                    if (indisponivel) {
+                        info.innerHTML = '<div class="text-danger small mt-1">Patrimônio indisponível. ' +
+                            'Verifique que o patrimônio digitado corresponde ao do equipamento em questão.</div>';
+                        return;
+                    }
+                    var linha = dados.categoria + ' ' + dados.marca + ' ' + dados.modelo +
+                        ' — setor atual: ' + dados.setor + ' — status: ' + dados.status;
+                    info.innerHTML = '<div class="small mt-1 text-success">' + linha + '</div>';
+                });
+        }
+
+        input.addEventListener('input', function () {
+            clearTimeout(timer);
+            timer = setTimeout(consultar, 400);
+        });
+        consultar();
+    });
+
+    document.querySelectorAll('button[data-limpar]').forEach(function (botao) {
+        botao.addEventListener('click', function () {
+            var campo = document.getElementById(botao.getAttribute('data-limpar'));
+            campo.value = '';
+            campo.dispatchEvent(new Event('input'));
+            campo.focus();
+        });
+    });
+
+    var checkboxSemMovimentacao = document.getElementById('sem_movimentacao');
+    var camposPatrimonio = document.querySelectorAll('input[data-consulta]');
+    var botaoFecharChamado = document.getElementById('botaoFecharChamado');
+    var hiddenConfirmarSemMovimentacao = document.getElementById('hiddenConfirmarSemMovimentacao');
+
+    function atualizarBotaoFechar() {
+        if (!botaoFecharChamado) return;
+        var categoriaConfirmada = botaoFecharChamado.getAttribute('data-categoria-confirmada') === 'true';
+        var tecnicoAtribuido = botaoFecharChamado.getAttribute('data-tecnico-atribuido') === 'true';
+        var movimentacaoConfirmada = botaoFecharChamado.getAttribute('data-movimentacao-confirmada') === 'true';
+        var semMovimentacaoMarcado = !!(checkboxSemMovimentacao && checkboxSemMovimentacao.checked);
+        botaoFecharChamado.disabled = !(categoriaConfirmada && tecnicoAtribuido && (movimentacaoConfirmada || semMovimentacaoMarcado));
+        if (hiddenConfirmarSemMovimentacao) {
+            hiddenConfirmarSemMovimentacao.value = semMovimentacaoMarcado ? 'on' : '';
+        }
+    }
+
+    if (checkboxSemMovimentacao) {
+        checkboxSemMovimentacao.addEventListener('change', function () {
+            camposPatrimonio.forEach(function (campo) {
+                if (checkboxSemMovimentacao.checked) {
+                    campo.value = '';
+                    campo.dispatchEvent(new Event('input'));
+                }
+                campo.disabled = checkboxSemMovimentacao.checked;
+            });
+            atualizarBotaoFechar();
+        });
+        camposPatrimonio.forEach(function (campo) {
+            campo.addEventListener('input', function () {
+                if (campo.value.trim() && checkboxSemMovimentacao.checked) {
+                    checkboxSemMovimentacao.checked = false;
+                    atualizarBotaoFechar();
+                }
+            });
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,126 @@
+{% extends "tickets/base.html" %}
+
+{% block title %}{% if modo == "editar" %}Editar artigo{% else %}Novo artigo{% endif %} — Base de conhecimento{% endblock %}
+
+{% block extra_head %}
+<link
+    href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css"
+    rel="stylesheet"
+    integrity="sha384-ecIckRi4QlKYya/FQUbBUjS4qp65jF/J87Guw5uzTbO1C1Jfa/6kYmd6dXUF6D7i"
+    crossorigin="anonymous">
+<style>
+    #editor-conteudo .ql-editor { min-height: 220px; color: var(--bs-body-color); }
+    .ql-toolbar.ql-snow, .ql-container.ql-snow { border-color: var(--bs-border-color); }
+    .ql-snow .ql-picker { color: var(--bs-body-color); }
+    .ql-snow .ql-stroke { stroke: var(--bs-body-color); }
+    .ql-snow .ql-fill { fill: var(--bs-body-color); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        {% if modo == "editar" %}
+            <a href="{% url 'tickets:detalhe_artigo' artigo.pk %}" class="link-secondary small">&larr; Voltar para o artigo</a>
+        {% else %}
+            <a href="{% url 'tickets:listar_artigos' %}" class="link-secondary small">&larr; Voltar para a base de conhecimento</a>
+        {% endif %}
+
+        <div class="card shadow-sm mt-2">
+            <div class="card-body">
+                <h1 class="h4 card-title mb-3">{% if modo == "editar" %}Editar artigo{% else %}Novo artigo{% endif %}</h1>
+
+                <form method="post" novalidate>
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label for="{{ form.titulo.id_for_label }}" class="form-label">{{ form.titulo.label }} <span class="text-danger">*</span></label>
+                        {{ form.titulo }}
+                        {% for error in form.titulo.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.resumo.id_for_label }}" class="form-label">{{ form.resumo.label }}</label>
+                        {{ form.resumo }}
+                        <div class="form-text">{{ form.resumo.help_text }}</div>
+                        {% for error in form.resumo.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.categoria.id_for_label }}" class="form-label">{{ form.categoria.label }}</label>
+                        {{ form.categoria }}
+                        {% for error in form.categoria.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">{{ form.conteudo.label }} <span class="text-danger">*</span></label>
+                        <div id="editor-conteudo" class="bg-body"></div>
+                        {{ form.conteudo }}
+                        {% for error in form.conteudo.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">{% if modo == "editar" %}Salvar alterações{% else %}Publicar artigo{% endif %}</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script
+    src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"
+    integrity="sha384-utBUCeG4SYaCm4m7GQZYr8Hy8Fpy3V4KGjBZaf4WTKOcwhCYpt/0PfeEe3HNlwx8"
+    crossorigin="anonymous"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var Size = Quill.import('attributors/style/size');
+        Size.whitelist = ['small', false, 'large', 'huge'];
+        Quill.register(Size, true);
+
+        var Align = Quill.import('attributors/style/align');
+        Quill.register(Align, true);
+
+        var Color = Quill.import('attributors/style/color');
+        Quill.register(Color, true);
+
+        var Background = Quill.import('attributors/style/background');
+        Quill.register(Background, true);
+
+        var campoOculto = document.getElementById('id_conteudo');
+        var conteudoInicial = campoOculto.value;
+        campoOculto.value = '';
+
+        var quill = new Quill('#editor-conteudo', {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    [{ size: ['small', false, 'large', 'huge'] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ color: [] }, { background: [] }],
+                    [{ list: 'ordered' }, { list: 'bullet' }],
+                    [{ align: [] }],
+                    ['link', 'blockquote', 'code-block'],
+                    ['clean'],
+                ],
+            },
+        });
+
+        if (conteudoInicial.trim()) {
+            quill.clipboard.dangerouslyPasteHTML(conteudoInicial);
+        }
+
+        campoOculto.closest('form').addEventListener('submit', function () {
+            campoOculto.value = quill.root.innerHTML;
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends "tickets/base.html" %}
+{% load static %}
+
+{% block title %}Entrar — Chamados de TI{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-5">
+        <div class="text-center mb-4">
+            <img src="{% static 'tickets/img/logo-full.png' %}" alt="Hospital Central São Lucas" style="max-width: 220px; width: 100%; height: auto;">
+        </div>
+        <div class="card shadow-sm">
+            <h1 class="h3 card-header text-center">Seja Bem Vindo</h1>
+            <div class="card-body">
+                <h2 class="h4 card-title mb-3">Entrar</h2>
+
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label for="{{ form.username.id_for_label }}" class="form-label">Usuário</label>
+                        {{ form.username }}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.password.id_for_label }}" class="form-label">Senha</label>
+                        <div class="input-group">
+                            {{ form.password }}
+                            <button type="button" class="btn btn-outline-primary" id="togglePassword" aria-label="Mostrar senha" title="Mostrar senha">
+                                <svg id="iconeOlhoAberto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+                                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                                <svg id="iconeOlhoFechado" class="d-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+                                    <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.6 21.6 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 7 11 7a21.6 21.6 0 0 1-4.22 5.19M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
+                                    <path d="M1 1l22 22"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    {% if form.errors %}
+                        <div class="text-danger small mb-3">Usuário ou senha inválidos.</div>
+                    {% endif %}
+
+                    <input type="hidden" name="next" value="{{ next }}">
+                    <button type="submit" class="btn btn-success">Entrar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var botao = document.getElementById('togglePassword');
+    var campoSenha = document.getElementById('{{ form.password.id_for_label }}');
+    var olhoAberto = document.getElementById('iconeOlhoAberto');
+    var olhoFechado = document.getElementById('iconeOlhoFechado');
+
+    botao.addEventListener('click', function () {
+        var mostrando = campoSenha.type === 'text';
+        campoSenha.type = mostrando ? 'password' : 'text';
+        olhoAberto.classList.toggle('d-none', !mostrando);
+        olhoFechado.classList.toggle('d-none', mostrando);
+        var rotulo = mostrando ? 'Mostrar senha' : 'Ocultar senha';
+        botao.setAttribute('aria-label', rotulo);
+        botao.setAttribute('title', rotulo);
+    });
+});
+</script>
+{% endblock %}

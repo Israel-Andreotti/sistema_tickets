@@ -1,0 +1,240 @@
+{% extends "tickets/base.html" %}
+{% load ticket_extras %}
+
+{% block title %}Fila de chamados — Chamados de TI{% endblock %}
+
+{% block extra_css %}
+.stat-card {
+    background: var(--stat-bg);
+    border: 1px solid var(--stat-border);
+    border-left: 4px solid var(--bs-primary);
+    border-radius: 8px;
+    padding: 0.9rem 1.1rem;
+}
+.stat-card .stat-label {
+    font-size: 0.78rem;
+    color: var(--stat-label);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.stat-card .stat-value {
+    font-size: 1.7rem;
+    font-weight: 700;
+    color: var(--brand);
+    font-variant-numeric: tabular-nums;
+}
+.ticket-table td { vertical-align: middle; }
+
+#bannerNovosChamados {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1055;
+    min-width: 320px;
+    max-width: min(90vw, 420px);
+    border: none;
+    border-left: 5px solid #ffc107;
+    font-size: 1rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    animation: chamadoNovoEntrada 0.35s ease-out, chamadoNovoPulso 1.6s ease-in-out 0.35s infinite;
+}
+#bannerNovosChamados .bell {
+    font-size: 1.4rem;
+    display: inline-block;
+    animation: chamadoNovoBalanco 0.6s ease-in-out 0.35s 3;
+}
+@keyframes chamadoNovoEntrada {
+    from { opacity: 0; transform: translateY(-24px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes chamadoNovoPulso {
+    0%, 100% { box-shadow: 0 8px 24px rgba(255, 193, 7, 0.35); }
+    50% { box-shadow: 0 10px 32px rgba(255, 193, 7, 0.8); }
+}
+@keyframes chamadoNovoBalanco {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-18deg); }
+    75% { transform: rotate(18deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+    #bannerNovosChamados,
+    #bannerNovosChamados .bell {
+        animation: none;
+    }
+}
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h4 mb-0">Fila de chamados</h1>
+</div>
+
+<div id="bannerNovosChamados" class="alert alert-warning d-none d-flex justify-content-between align-items-center gap-3" role="alert">
+    <span class="d-flex align-items-center gap-2">
+        <span class="bell" aria-hidden="true">🔔</span>
+        <span id="textoNovosChamados" class="fw-semibold"></span>
+    </span>
+    <button type="button" class="btn btn-warning fw-semibold" onclick="window.location.reload()">Atualizar</button>
+</div>
+
+<p class="small text-muted mb-2">
+    Total atual, independente de filtro de período. Fechados e outros indicadores: aba de Dashboard.
+</p>
+
+<div class="row g-3 mb-4">
+    <div class="col-sm-6">
+        <div class="stat-card">
+            <div class="stat-label">Abertos agora</div>
+            <div class="stat-value">{{ contagens.aberto }}</div>
+        </div>
+    </div>
+    <div class="col-sm-6">
+        <div class="stat-card">
+            <div class="stat-label">Em atendimento agora</div>
+            <div class="stat-value">{{ contagens.em_atendimento }}</div>
+        </div>
+    </div>
+</div>
+
+<form method="get" class="card card-body mb-4">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-2">
+            <label for="busca" class="form-label small mb-1">Solicitante ou descrição</label>
+            <input
+                type="text" name="busca" id="busca" class="form-control form-control-sm"
+                placeholder="Buscar..." value="{{ busca }}">
+        </div>
+        <div class="col-md-2">
+            <label for="setor" class="form-label small mb-1">Setor</label>
+            <select name="setor" id="setor" class="form-select form-select-sm">
+                <option value="">Todos</option>
+                {% for setor in setores %}
+                    <option value="{{ setor.pk }}" {% if setor_selecionado == setor.pk|stringformat:"s" %}selected{% endif %}>{{ setor.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label for="status" class="form-label small mb-1">Status</label>
+            <select name="status" id="status" class="form-select form-select-sm">
+                <option value="">Todos</option>
+                <option value="aberto" {% if status_selecionado == "aberto" %}selected{% endif %}>Aberto</option>
+                <option value="em_atendimento" {% if status_selecionado == "em_atendimento" %}selected{% endif %}>Em atendimento</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label for="data_de" class="form-label small mb-1">Aberto de</label>
+            <input type="text" name="data_de" id="data_de" class="form-control form-control-sm" value="{{ data_de }}" placeholder="dd/mm/aaaa" inputmode="numeric" autocomplete="off" maxlength="10" data-date-mask>
+        </div>
+        <div class="col-md-2">
+            <label for="data_ate" class="form-label small mb-1">até</label>
+            <input type="text" name="data_ate" id="data_ate" class="form-control form-control-sm" value="{{ data_ate }}" placeholder="dd/mm/aaaa" inputmode="numeric" autocomplete="off" maxlength="10" data-date-mask>
+        </div>
+        <div class="col-md-auto d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-sm">Buscar</button>
+            {% if algum_filtro %}
+                <a href="{% url 'tickets:fila_tickets' %}" class="btn btn-outline-secondary btn-sm">Limpar filtros</a>
+            {% endif %}
+        </div>
+    </div>
+</form>
+
+<div class="table-responsive">
+    <table class="table table-hover align-middle ticket-table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Solicitante</th>
+                <th>Setor</th>
+                <th>Categoria (usuário)</th>
+                <th>Categoria (IA)</th>
+                <th>Prioridade</th>
+                <th>Status</th>
+                <th>Responsável</th>
+                <th>Aberto em</th>
+                <th>Tempo limite</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ticket in tickets %}
+            <tr onclick="window.location='{% url 'tickets:detalhe_ticket' ticket.pk %}'" style="cursor: pointer;">
+                <td>{{ ticket.pk }}</td>
+                <td>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="avatar-circle" style="background-color: {{ ticket.solicitante_nome|cor_avatar }};">
+                            {{ ticket.solicitante_nome|iniciais }}
+                        </span>
+                        <span>{{ ticket.solicitante_nome }}</span>
+                    </div>
+                </td>
+                <td>{{ ticket.setor }}</td>
+                <td>{{ ticket.categoria_sugerida }}</td>
+                <td>{{ ticket.categoria_ia|default:"—" }}</td>
+                <td>
+                    <span class="badge {{ ticket.prioridade_calculada|prioridade_classe }}">
+                        {{ ticket.prioridade_calculada|prioridade_label }}
+                    </span>
+                </td>
+                <td>
+                    <span class="badge {% if ticket.status == 'aberto' %}bg-warning text-dark{% else %}bg-info text-dark{% endif %}">
+                        {{ ticket.get_status_display }}
+                    </span>
+                </td>
+                <td>
+                    {% if ticket.tecnico_responsavel %}
+                        {{ ticket.tecnico_responsavel.get_full_name|default:ticket.tecnico_responsavel.username }}
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td>{{ ticket.data_abertura|date:"d/m/Y H:i" }}</td>
+                <td class="{% if ticket.prazo_estourado %}text-danger fw-semibold{% elif ticket.prazo_proximo %}text-warning-emphasis fw-semibold{% endif %}">
+                    {% if ticket.prazo_proximo %}<span title="Menos de 1h para estourar o SLA" aria-hidden="true">⚠️</span>{% endif %}
+                    {{ ticket.prazo|date:"d/m/Y H:i" }}
+                    {% if ticket.prazo_estourado %}
+                        <div class="small">estourado</div>
+                    {% elif ticket.prazo_proximo %}
+                        <div class="small">estoura em breve</div>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="10" class="text-center text-muted py-4">
+                    {% if algum_filtro %}Nenhum chamado encontrado com esses filtros.{% else %}Nenhum chamado em aberto.{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var ultimoId = {{ ultimo_id|default:0 }};
+    var banner = document.getElementById('bannerNovosChamados');
+    var texto = document.getElementById('textoNovosChamados');
+    var tituloOriginal = document.title;
+
+    var params = new URLSearchParams(window.location.search);
+    params.set('desde', ultimoId);
+    var url = '{% url "tickets:fila_tickets_novos" %}?' + params.toString();
+
+    var intervalo = setInterval(function () {
+        fetch(url)
+            .then(function (resp) { return resp.json(); })
+            .then(function (dados) {
+                if (dados.novos > 0) {
+                    texto.textContent = dados.novos === 1
+                        ? '1 novo chamado disponível.'
+                        : dados.novos + ' novos chamados disponíveis.';
+                    banner.classList.remove('d-none');
+                    document.title = '🔔 (' + dados.novos + ') ' + tituloOriginal;
+                    clearInterval(intervalo);
+                }
+            });
+    }, 20000);
+});
+</script>
+{% endblock %}

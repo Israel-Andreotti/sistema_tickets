@@ -1,0 +1,607 @@
+<!doctype html>
+{% load static ticket_extras %}
+<html lang="pt-br">
+<head>
+    <script>
+        (function () {
+            var tema = localStorage.getItem('theme');
+            if (tema === 'dark' || (!tema && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.setAttribute('data-bs-theme', 'dark');
+            }
+            if (localStorage.getItem('sidebarCollapsed') === 'true') {
+                document.documentElement.setAttribute('data-sidebar-collapsed', 'true');
+            }
+        })();
+    </script>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Chamados de TI{% endblock %}</title>
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+        crossorigin="anonymous">
+    {% block extra_head %}{% endblock %}
+    <style>
+        :root {
+            --bs-primary: #0e6e68;
+            --bs-primary-rgb: 14, 110, 104;
+            --bs-link-color: #0e6e68;
+            --bs-link-color-rgb: 14, 110, 104;
+            --bs-link-hover-color: #0a4f4a;
+            --bs-link-hover-color-rgb: 10, 79, 74;
+            --brand: #0b3d3a;
+            --brand-soft: #eafffa;
+            --sidebar-bg: #ffffff;
+            --sidebar-border: #e1e4e9;
+            --stat-bg: #ffffff;
+            --stat-border: #e1e4e9;
+            --stat-label: #5b6672;
+            --card-bg: #ffffff;
+            --card-border: #e1e4e9;
+            --label-muted: #5b6672;
+            --value-strong: #131a22;
+        }
+        [data-bs-theme="dark"] {
+            --bs-primary: #4fc1b8;
+            --bs-primary-rgb: 79, 193, 184;
+            --bs-link-color: #4fc1b8;
+            --bs-link-color-rgb: 79, 193, 184;
+            --bs-link-hover-color: #7fd6cf;
+            --bs-link-hover-color-rgb: 127, 214, 207;
+            --brand: #4fc1b8;
+            --brand-soft: #123330;
+            --sidebar-bg: #171e25;
+            --sidebar-border: #29323b;
+            --stat-bg: #1e293b;
+            --stat-border: #2b3a52;
+            --stat-label: #94a3b8;
+            --card-bg: #1e293b;
+            --card-border: #2b3a52;
+            --label-muted: #94a3b8;
+            --value-strong: #f8fafc;
+            --bs-body-bg: #0f172a;
+            --bs-body-color: #e2e8f0;
+            --bs-secondary-bg: #1e293b;
+            --bs-border-color: #2b3a52;
+        }
+
+        /* Bootstrap 5.3 resolve as cores dos botões a partir de variáveis
+           próprias do componente (--bs-btn-bg etc.), não de --bs-primary
+           diretamente — por isso precisam ser sobrescritas aqui, senão o
+           botão fica com o azul padrão do Bootstrap mesmo com --bs-primary
+           customizado. */
+        .btn-primary {
+            --bs-btn-bg: var(--bs-primary);
+            --bs-btn-border-color: var(--bs-primary);
+            --bs-btn-hover-bg: var(--bs-link-hover-color);
+            --bs-btn-hover-border-color: var(--bs-link-hover-color);
+            --bs-btn-active-bg: var(--bs-link-hover-color);
+            --bs-btn-active-border-color: var(--bs-link-hover-color);
+            --bs-btn-disabled-bg: var(--bs-primary);
+            --bs-btn-disabled-border-color: var(--bs-primary);
+            --bs-btn-focus-shadow-rgb: var(--bs-primary-rgb);
+        }
+        .btn-outline-primary {
+            --bs-btn-color: var(--bs-primary);
+            --bs-btn-border-color: var(--bs-primary);
+            --bs-btn-hover-bg: var(--bs-primary);
+            --bs-btn-hover-border-color: var(--bs-primary);
+            --bs-btn-active-bg: var(--bs-primary);
+            --bs-btn-active-border-color: var(--bs-primary);
+            --bs-btn-disabled-color: var(--bs-primary);
+            --bs-btn-disabled-border-color: var(--bs-primary);
+            --bs-btn-focus-shadow-rgb: var(--bs-primary-rgb);
+        }
+
+        h1, h2, h3 { color: var(--brand); }
+        .card {
+            background-color: var(--card-bg);
+            border-color: var(--card-border);
+            border-top: 3px solid var(--bs-primary);
+        }
+        .kv-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 0.9rem 1.5rem;
+        }
+        .kv-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--label-muted);
+            margin-bottom: 0.15rem;
+        }
+        .kv-value { color: var(--value-strong); font-weight: 500; }
+        .description-box {
+            background: var(--stat-bg);
+            border: 1px solid var(--card-border);
+            border-left: 3px solid var(--bs-primary);
+            border-radius: 8px;
+            padding: 0.9rem 1.1rem;
+            color: var(--value-strong);
+            white-space: pre-wrap;
+        }
+        .two-col-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        @media (max-width: 575.98px) {
+            .two-col-grid { grid-template-columns: 1fr; }
+        }
+        .compare-box {
+            background: var(--stat-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 0.75rem 0.9rem;
+        }
+
+        .timeline { list-style: none; margin: 0; padding: 0; }
+        .timeline-item {
+            position: relative;
+            padding-left: 1.6rem;
+            padding-bottom: 1.1rem;
+            border-left: 2px solid var(--card-border);
+            margin-left: 0.3rem;
+        }
+        .timeline-item:last-child { border-left-color: transparent; padding-bottom: 0; }
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -0.35rem;
+            top: 0.2rem;
+            width: 0.65rem;
+            height: 0.65rem;
+            border-radius: 50%;
+            background: var(--bs-primary);
+            border: 2px solid var(--card-bg);
+        }
+        .timeline-transicao {
+            font-size: 0.82rem;
+            color: var(--label-muted);
+        }
+
+        .avatar-circle {
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.72rem;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        .avatar-circle-lg {
+            width: 5rem;
+            height: 5rem;
+            font-size: 1.7rem;
+        }
+
+        .comment-card {
+            background: var(--stat-bg);
+            border: 1px solid var(--card-border);
+            border-left: 3px solid var(--card-border);
+            border-radius: 8px;
+            padding: 0.75rem 0.9rem;
+        }
+        .comment-card.tipo-nota_interna { border-left-color: #ffc107; }
+        .comment-card.tipo-resposta_usuario { border-left-color: #0dcaf0; }
+        .comment-card.tipo-desfecho { border-left-color: #198754; }
+
+        .app-shell { display: flex; min-height: 100vh; align-items: stretch; }
+
+        .sidebar {
+            width: 240px;
+            flex-shrink: 0;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--sidebar-border);
+            display: flex;
+            flex-direction: column;
+            padding: 1.25rem 1rem;
+            transition: width 0.15s ease;
+        }
+        .sidebar-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+        .sidebar-brand a {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            font-weight: 700;
+            font-size: 0.95rem;
+            line-height: 1.15;
+            color: var(--brand);
+            text-decoration: none;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+        .sidebar-brand .brand-icon {
+            height: 1.9rem;
+            width: auto;
+            flex-shrink: 0;
+        }
+        #toggleSidebar {
+            border: 1px solid var(--sidebar-border);
+            background: transparent;
+            color: var(--brand);
+            line-height: 1;
+            flex-shrink: 0;
+        }
+        .sidebar-nav {
+            margin-top: 1.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.15rem;
+        }
+        .sidebar-nav a {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.55rem 0.6rem;
+            border-radius: 8px;
+            border-left: 3px solid transparent;
+            color: var(--bs-body-color);
+            text-decoration: none;
+            font-size: 0.92rem;
+            white-space: nowrap;
+        }
+        .sidebar-nav a:hover { background: var(--brand-soft); }
+        .sidebar-nav a.active {
+            background: var(--brand-soft);
+            border-left-color: var(--bs-primary);
+            color: var(--brand);
+            font-weight: 600;
+        }
+        .nav-icon {
+            flex-shrink: 0;
+            width: 1.6rem;
+            height: 1.6rem;
+            border-radius: 6px;
+            background: var(--brand-soft);
+            color: var(--brand);
+            font-weight: 700;
+            font-size: 0.72rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .sidebar-nav a.active .nav-icon { background: var(--bs-primary); color: #fff; }
+        .sidebar-nav-group-label {
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--label-muted);
+            padding: 0.4rem 0.6rem 0.2rem;
+            margin-top: 0.6rem;
+        }
+        .sidebar-nav-group-label:first-child { margin-top: 0; }
+
+        .sidebar-user {
+            margin-top: auto;
+            padding-top: 1rem;
+            border-top: 1px solid var(--sidebar-border);
+            font-size: 0.85rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.7rem;
+        }
+        .theme-switch-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+        .sidebar-profile-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+        .sidebar-profile-link {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            min-width: 0;
+            text-decoration: none;
+            color: var(--bs-body-color);
+        }
+        .sidebar-profile-link .user-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        html[data-sidebar-collapsed="true"] .sidebar-profile-row {
+            flex-direction: column;
+        }
+
+        .app-main { flex: 1; min-width: 0; }
+
+        .collapsed-only { display: none; }
+
+        /* ---- sidebar recolhida ---- */
+        html[data-sidebar-collapsed="true"] .sidebar { width: 68px; }
+        html[data-sidebar-collapsed="true"] .collapsed-only { display: inline; }
+        html[data-sidebar-collapsed="true"] .sidebar-brand .brand-text,
+        html[data-sidebar-collapsed="true"] .sidebar-nav .link-text,
+        html[data-sidebar-collapsed="true"] .sidebar-nav-group-label,
+        html[data-sidebar-collapsed="true"] .sidebar-user .user-text,
+        html[data-sidebar-collapsed="true"] .theme-switch-row .switch-text {
+            display: none;
+        }
+        html[data-sidebar-collapsed="true"] .sidebar-user,
+        html[data-sidebar-collapsed="true"] .theme-switch-row {
+            align-items: center;
+        }
+        html[data-sidebar-collapsed="true"] .sidebar-top {
+            flex-direction: column;
+            justify-content: center;
+            gap: 0.6rem;
+        }
+
+        @media (max-width: 767.98px) {
+            .app-shell { flex-direction: column; }
+            .sidebar, html[data-sidebar-collapsed="true"] .sidebar {
+                width: 100%;
+                flex-direction: row;
+                align-items: center;
+                overflow-x: auto;
+                border-right: none;
+                border-bottom: 1px solid var(--sidebar-border);
+            }
+            .sidebar-top, html[data-sidebar-collapsed="true"] .sidebar-top { flex-direction: row; }
+            .sidebar-brand { margin-right: 1rem; white-space: nowrap; }
+            .sidebar-nav { flex-direction: row; margin-top: 0; }
+            .sidebar-nav a .link-text { display: inline; }
+            .sidebar-nav a { white-space: nowrap; }
+            .sidebar-nav-group-label { display: none; }
+            .sidebar-user {
+                margin-top: 0; margin-left: auto; border-top: none; padding-top: 0;
+                flex-direction: row; align-items: center; white-space: nowrap;
+            }
+            .sidebar-user .user-text { display: inline; }
+            #toggleSidebar { display: none; }
+        }
+        {% block extra_css %}{% endblock %}
+    </style>
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="sidebar-top">
+                <div class="sidebar-brand">
+                    <a href="{% url 'tickets:abrir_ticket' %}">
+                        <img src="{% static 'tickets/img/logo-icon.png' %}" alt="Hospital Central São Lucas" class="brand-icon">
+                        <span class="brand-text">Hospital Central<br>São Lucas</span>
+                    </a>
+                </div>
+                <button type="button" id="toggleSidebar" class="btn btn-sm" aria-label="Recolher menu" title="Recolher menu">☰</button>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="sidebar-nav-group-label">Atendimento</div>
+                <a href="{% url 'tickets:abrir_ticket' %}" class="{% if request.resolver_match.url_name == 'abrir_ticket' %}active{% endif %}">
+                    <span class="nav-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                            <path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4Z"/>
+                            <path d="M12 9v6M9 12h6"/>
+                        </svg>
+                    </span><span class="link-text">Abrir chamado</span>
+                </a>
+                {% if user.is_authenticated and user.is_staff or eh_gestor %}
+                    <a href="{% url 'tickets:fila_tickets' %}" class="{% if request.resolver_match.url_name == 'fila_tickets' %}active{% endif %}">
+                        <span class="nav-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                                <circle cx="4" cy="6" r="1"/>
+                                <circle cx="4" cy="12" r="1"/>
+                                <circle cx="4" cy="18" r="1"/>
+                                <path d="M9 6h11M9 12h11M9 18h11"/>
+                            </svg>
+                        </span><span class="link-text">Fila de chamados</span>
+                    </a>
+                {% endif %}
+                {% if user.is_authenticated %}
+                    <a href="{% url 'tickets:meus_tickets' %}" class="{% if request.resolver_match.url_name == 'meus_tickets' or request.resolver_match.url_name == 'meu_ticket_detalhe' %}active{% endif %}">
+                        <span class="nav-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+                                <rect x="9" y="3" width="6" height="4" rx="1"/>
+                                <path d="M9 12h6M9 16h6"/>
+                            </svg>
+                        </span><span class="link-text">Meus chamados</span>
+                    </a>
+                {% endif %}
+                {% if user.is_authenticated and user.is_staff or eh_gestor %}
+                    <a href="{% url 'tickets:dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+                        <span class="nav-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                                <rect x="3" y="3" width="7" height="9" rx="1"/>
+                                <rect x="14" y="3" width="7" height="5" rx="1"/>
+                                <rect x="14" y="12" width="7" height="9" rx="1"/>
+                                <rect x="3" y="16" width="7" height="5" rx="1"/>
+                            </svg>
+                        </span><span class="link-text">Dashboard</span>
+                    </a>
+                    <a href="{% url 'tickets:historico_tickets' %}" class="{% if request.resolver_match.url_name == 'historico_tickets' %}active{% endif %}">
+                        <span class="nav-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                                <circle cx="12" cy="12" r="9"/>
+                                <path d="M12 7v5l3 3"/>
+                            </svg>
+                        </span><span class="link-text">Histórico</span>
+                    </a>
+                {% endif %}
+
+                {% if user.is_authenticated %}
+                <div class="sidebar-nav-group-label">Recursos</div>
+                    <a href="{% url 'tickets:listar_artigos' %}" class="{% if request.resolver_match.url_name == 'listar_artigos' or request.resolver_match.url_name == 'detalhe_artigo' %}active{% endif %}">
+                        <span class="nav-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                                <path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z"/>
+                                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                            </svg>
+                        </span><span class="link-text">Base de conhecimento</span>
+                    </a>
+                {% endif %}
+                {% if user.is_authenticated and user.is_staff or eh_gestor %}
+                    <a href="{% url 'tickets:listar_equipamentos' %}" class="{% if request.resolver_match.url_name == 'listar_equipamentos' %}active{% endif %}">
+                        <span class="nav-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                                <rect x="3" y="4" width="18" height="12" rx="2"/>
+                                <path d="M8 20h8M12 16v4"/>
+                            </svg>
+                        </span><span class="link-text">Equipamentos</span>
+                    </a>
+                {% endif %}
+
+                {% if pode_ver_slas or user.is_superuser %}
+                <div class="sidebar-nav-group-label">Administração</div>
+                    {% if pode_ver_slas %}
+                        <a href="{% url 'tickets:sla_por_categoria' %}" class="{% if request.resolver_match.url_name == 'sla_por_categoria' %}active{% endif %}">
+                            <span class="nav-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                                    <circle cx="12" cy="12" r="9"/>
+                                    <path d="M12 7v5l4 2"/>
+                                </svg>
+                            </span><span class="link-text">SLA por categoria</span>
+                        </a>
+                    {% endif %}
+                    {% if user.is_superuser %}
+                        <a href="{% url 'admin:index' %}">
+                            <span class="nav-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                                    <circle cx="12" cy="12" r="3"/>
+                                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
+                                </svg>
+                            </span><span class="link-text">Painel Admin</span>
+                        </a>
+                    {% endif %}
+                {% endif %}
+            </nav>
+
+            <div class="sidebar-user">
+                <div class="theme-switch-row">
+                    <span class="d-flex align-items-center gap-2">
+                        <span id="iconeTema" class="text-muted" aria-hidden="true">
+                            <svg id="iconeSol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" class="d-none">
+                                <circle cx="12" cy="12" r="5"/>
+                                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                            </svg>
+                            <svg id="iconeLua" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" class="d-none">
+                                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/>
+                            </svg>
+                        </span>
+                        <span class="switch-text text-muted">Tema escuro</span>
+                    </span>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" id="themeSwitch">
+                    </div>
+                </div>
+                {% if user.is_authenticated %}
+                    {% with nome=user.get_full_name|default:user.username %}
+                    <div class="sidebar-profile-row">
+                        <a href="{% url 'tickets:perfil' user.username %}" class="sidebar-profile-link" title="{{ nome }}">
+                            <span class="avatar-circle" style="background-color: {{ nome|cor_avatar }};">{{ nome|iniciais }}</span>
+                            <span class="user-text">{{ nome }}</span>
+                        </a>
+                        <form method="post" action="{% url 'logout' %}" class="mb-0">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-primary" title="Sair">
+                                <span class="user-text">Sair</span><span class="collapsed-only">⎋</span>
+                            </button>
+                        </form>
+                    </div>
+                    {% endwith %}
+                {% else %}
+                    <a href="{% url 'login' %}" title="Entrar">
+                        <span class="user-text">Entrar</span><span class="collapsed-only">➜</span>
+                    </a>
+                {% endif %}
+            </div>
+        </aside>
+
+        <div class="app-main">
+            <main class="container-fluid py-4">
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags|default:'info' }}" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <script
+        src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+        crossorigin="anonymous"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var toggleBtn = document.getElementById('toggleSidebar');
+            toggleBtn.addEventListener('click', function () {
+                var colapsada = document.documentElement.getAttribute('data-sidebar-collapsed') === 'true';
+                document.documentElement.setAttribute('data-sidebar-collapsed', (!colapsada).toString());
+                localStorage.setItem('sidebarCollapsed', (!colapsada).toString());
+            });
+
+            var themeSwitch = document.getElementById('themeSwitch');
+            var iconeSol = document.getElementById('iconeSol');
+            var iconeLua = document.getElementById('iconeLua');
+
+            function atualizarIconeTema(escuro) {
+                iconeSol.classList.toggle('d-none', escuro);
+                iconeLua.classList.toggle('d-none', !escuro);
+            }
+
+            var temaEscuro = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+            themeSwitch.checked = temaEscuro;
+            atualizarIconeTema(temaEscuro);
+
+            themeSwitch.addEventListener('change', function () {
+                var tema = themeSwitch.checked ? 'dark' : 'light';
+                document.documentElement.setAttribute('data-bs-theme', tema);
+                localStorage.setItem('theme', tema);
+                atualizarIconeTema(themeSwitch.checked);
+            });
+
+            // Campos de data em dd/mm/aaaa forçado: o <input type="date"> nativo
+            // mostra o formato do sistema operacional de quem usa (nem sempre
+            // dd/mm/aaaa, mesmo com lang="pt-BR"), então usamos texto com
+            // máscara e só convertemos pra ISO (yyyy-mm-dd) ao enviar o form.
+            document.querySelectorAll('input[data-date-mask]').forEach(function (campo) {
+                if (campo.value && /^\d{4}-\d{2}-\d{2}$/.test(campo.value)) {
+                    var partesIso = campo.value.split('-');
+                    campo.value = partesIso[2] + '/' + partesIso[1] + '/' + partesIso[0];
+                }
+
+                campo.addEventListener('input', function () {
+                    var digitos = campo.value.replace(/\D/g, '').slice(0, 8);
+                    var formatado = digitos;
+                    if (digitos.length > 4) {
+                        formatado = digitos.slice(0, 2) + '/' + digitos.slice(2, 4) + '/' + digitos.slice(4);
+                    } else if (digitos.length > 2) {
+                        formatado = digitos.slice(0, 2) + '/' + digitos.slice(2);
+                    }
+                    campo.value = formatado;
+                });
+
+                var formularioDoCampo = campo.closest('form');
+                if (formularioDoCampo) {
+                    formularioDoCampo.addEventListener('submit', function () {
+                        var partesBr = campo.value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+                        campo.value = partesBr ? (partesBr[3] + '-' + partesBr[2] + '-' + partesBr[1]) : '';
+                    });
+                }
+            });
+        });
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
