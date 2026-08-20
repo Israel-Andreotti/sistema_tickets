@@ -1,0 +1,5 @@
+#editor-conteudo .ql-editor { min-height: 220px; color: var(--bs-body-color); }
+.ql-toolbar.ql-snow, .ql-container.ql-snow { border-color: var(--bs-border-color); }
+.ql-snow .ql-picker { color: var(--bs-body-color); }
+.ql-snow .ql-stroke { stroke: var(--bs-body-color); }
+.ql-snow .ql-fill { fill: var(--bs-body-color); }

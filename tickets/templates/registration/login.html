@@ -50,23 +50,8 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    var botao = document.getElementById('togglePassword');
-    var campoSenha = document.getElementById('{{ form.password.id_for_label }}');
-    var olhoAberto = document.getElementById('iconeOlhoAberto');
-    var olhoFechado = document.getElementById('iconeOlhoFechado');
-
-    botao.addEventListener('click', function () {
-        var mostrando = campoSenha.type === 'text';
-        campoSenha.type = mostrando ? 'password' : 'text';
-        olhoAberto.classList.toggle('d-none', !mostrando);
-        olhoFechado.classList.toggle('d-none', mostrando);
-        var rotulo = mostrando ? 'Mostrar senha' : 'Ocultar senha';
-        botao.setAttribute('aria-label', rotulo);
-        botao.setAttribute('title', rotulo);
-    });
-});
-</script>
+{% block extra_js %}
+<script src="{% static 'tickets/js/login.js' %}" defer></script>
 {% endblock %}

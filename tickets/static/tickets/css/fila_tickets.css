@@ -1,0 +1,58 @@
+.stat-card {
+    background: var(--stat-bg);
+    border: 1px solid var(--stat-border);
+    border-left: 4px solid var(--bs-primary);
+    border-radius: 8px;
+    padding: 0.9rem 1.1rem;
+}
+.stat-card .stat-label {
+    font-size: 0.78rem;
+    color: var(--stat-label);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.stat-card .stat-value {
+    font-size: 1.7rem;
+    font-weight: 700;
+    color: var(--brand);
+    font-variant-numeric: tabular-nums;
+}
+.ticket-table td { vertical-align: middle; }
+
+#bannerNovosChamados {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1055;
+    min-width: 320px;
+    max-width: min(90vw, 420px);
+    border: none;
+    border-left: 5px solid #ffc107;
+    font-size: 1rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    animation: chamadoNovoEntrada 0.35s ease-out, chamadoNovoPulso 1.6s ease-in-out 0.35s infinite;
+}
+#bannerNovosChamados .bell {
+    font-size: 1.4rem;
+    display: inline-block;
+    animation: chamadoNovoBalanco 0.6s ease-in-out 0.35s 3;
+}
+@keyframes chamadoNovoEntrada {
+    from { opacity: 0; transform: translateY(-24px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes chamadoNovoPulso {
+    0%, 100% { box-shadow: 0 8px 24px rgba(255, 193, 7, 0.35); }
+    50% { box-shadow: 0 10px 32px rgba(255, 193, 7, 0.8); }
+}
+@keyframes chamadoNovoBalanco {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-18deg); }
+    75% { transform: rotate(18deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+    #bannerNovosChamados,
+    #bannerNovosChamados .bell {
+        animation: none;
+    }
+}

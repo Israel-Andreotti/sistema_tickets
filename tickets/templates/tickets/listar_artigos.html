@@ -1,39 +1,20 @@
 {% extends "tickets/base.html" %}
+{% load static %}
 
 {% block title %}Base de conhecimento — Chamados de TI{% endblock %}
 
-{% block extra_css %}
-.artigo-card {
-    transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
-}
-.artigo-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
-    border-color: var(--bs-primary);
-}
-.artigo-icone {
-    flex-shrink: 0;
-    width: 2.25rem;
-    height: 2.25rem;
-    border-radius: 8px;
-    background: var(--brand-soft);
-    color: var(--brand);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.artigo-corpo {
-    min-height: 2.75rem;
-}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'tickets/css/listar_artigos.css' %}">
 {% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-0">
     <h1 class="h4 mb-0">Base de conhecimento</h1>
     {% if user.is_staff or eh_gestor %}
         <a href="{% url 'tickets:criar_artigo' %}" class="btn btn-primary btn-sm">Novo artigo</a>
     {% endif %}
 </div>
+<p class="subtitulo-institucional mb-3">Central de Serviços de Tecnologia da Informação — HCSL</p>
 
 <form method="get" class="card card-body mb-4">
     <div class="row g-2 align-items-end">
@@ -63,7 +44,7 @@
     </div>
 </form>
 
-<div class="d-flex flex-column gap-2">
+<div class="d-flex flex-column gap-3">
     {% for artigo in artigos %}
     <a href="{% url 'tickets:detalhe_artigo' artigo.pk %}" class="artigo-card card card-body text-decoration-none text-reset">
         <div class="d-flex align-items-start gap-3">

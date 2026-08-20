@@ -1,75 +1,20 @@
 {% extends "tickets/base.html" %}
-{% load ticket_extras %}
+{% load static ticket_extras %}
 
 {% block title %}Fila de chamados — Chamados de TI{% endblock %}
 
-{% block extra_css %}
-.stat-card {
-    background: var(--stat-bg);
-    border: 1px solid var(--stat-border);
-    border-left: 4px solid var(--bs-primary);
-    border-radius: 8px;
-    padding: 0.9rem 1.1rem;
-}
-.stat-card .stat-label {
-    font-size: 0.78rem;
-    color: var(--stat-label);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-.stat-card .stat-value {
-    font-size: 1.7rem;
-    font-weight: 700;
-    color: var(--brand);
-    font-variant-numeric: tabular-nums;
-}
-.ticket-table td { vertical-align: middle; }
-
-#bannerNovosChamados {
-    position: fixed;
-    top: 1rem;
-    right: 1rem;
-    z-index: 1055;
-    min-width: 320px;
-    max-width: min(90vw, 420px);
-    border: none;
-    border-left: 5px solid #ffc107;
-    font-size: 1rem;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-    animation: chamadoNovoEntrada 0.35s ease-out, chamadoNovoPulso 1.6s ease-in-out 0.35s infinite;
-}
-#bannerNovosChamados .bell {
-    font-size: 1.4rem;
-    display: inline-block;
-    animation: chamadoNovoBalanco 0.6s ease-in-out 0.35s 3;
-}
-@keyframes chamadoNovoEntrada {
-    from { opacity: 0; transform: translateY(-24px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-@keyframes chamadoNovoPulso {
-    0%, 100% { box-shadow: 0 8px 24px rgba(255, 193, 7, 0.35); }
-    50% { box-shadow: 0 10px 32px rgba(255, 193, 7, 0.8); }
-}
-@keyframes chamadoNovoBalanco {
-    0%, 100% { transform: rotate(0deg); }
-    25% { transform: rotate(-18deg); }
-    75% { transform: rotate(18deg); }
-}
-@media (prefers-reduced-motion: reduce) {
-    #bannerNovosChamados,
-    #bannerNovosChamados .bell {
-        animation: none;
-    }
-}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'tickets/css/fila_tickets.css' %}">
 {% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-1">
     <h1 class="h4 mb-0">Fila de chamados</h1>
 </div>
+<p class="subtitulo-institucional mb-3">Central de Serviços de Tecnologia da Informação — HCSL</p>
 
-<div id="bannerNovosChamados" class="alert alert-warning d-none d-flex justify-content-between align-items-center gap-3" role="alert">
+<div id="bannerNovosChamados" class="alert alert-warning d-none d-flex justify-content-between align-items-center gap-3" role="alert"
+     data-ultimo-id="{{ ultimo_id|default:0 }}" data-url-novos="{% url 'tickets:fila_tickets_novos' %}">
     <span class="d-flex align-items-center gap-2">
         <span class="bell" aria-hidden="true">🔔</span>
         <span id="textoNovosChamados" class="fw-semibold"></span>
@@ -210,31 +155,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    var ultimoId = {{ ultimo_id|default:0 }};
-    var banner = document.getElementById('bannerNovosChamados');
-    var texto = document.getElementById('textoNovosChamados');
-    var tituloOriginal = document.title;
-
-    var params = new URLSearchParams(window.location.search);
-    params.set('desde', ultimoId);
-    var url = '{% url "tickets:fila_tickets_novos" %}?' + params.toString();
-
-    var intervalo = setInterval(function () {
-        fetch(url)
-            .then(function (resp) { return resp.json(); })
-            .then(function (dados) {
-                if (dados.novos > 0) {
-                    texto.textContent = dados.novos === 1
-                        ? '1 novo chamado disponível.'
-                        : dados.novos + ' novos chamados disponíveis.';
-                    banner.classList.remove('d-none');
-                    document.title = '🔔 (' + dados.novos + ') ' + tituloOriginal;
-                    clearInterval(intervalo);
-                }
-            });
-    }, 20000);
-});
-</script>
+<script src="{% static 'tickets/js/fila_tickets.js' %}" defer></script>
 {% endblock %}

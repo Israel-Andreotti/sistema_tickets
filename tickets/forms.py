@@ -140,7 +140,7 @@ class AbrirTicketForm(forms.Form):
         label="Descreva o problema",
         help_text="Inclua mensagens de erro exatas, passos para reproduzir e horário do ocorrido.",
         error_messages={"required": "A descrição é obrigatória."},
-        widget=forms.Textarea(attrs={"class": "form-control", "rows": 7, "style": "resize: vertical;"}),
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 3, "style": "resize: vertical;"}),
     )
 
     def __init__(self, *args, user=None, **kwargs):

@@ -1,0 +1,366 @@
+:root {
+    --bs-primary: #0e6e68;
+    --bs-primary-rgb: 14, 110, 104;
+    --bs-link-color: #0e6e68;
+    --bs-link-color-rgb: 14, 110, 104;
+    --bs-link-hover-color: #0a4f4a;
+    --bs-link-hover-color-rgb: 10, 79, 74;
+    --brand: #0b3d3a;
+    --brand-soft: #eafffa;
+    --sidebar-bg: #ffffff;
+    --sidebar-border: #e1e4e9;
+    --stat-bg: #ffffff;
+    --stat-border: #e1e4e9;
+    --stat-label: #5b6672;
+    --card-bg: #ffffff;
+    --card-border: #e1e4e9;
+    --label-muted: #5b6672;
+    --value-strong: #131a22;
+}
+[data-bs-theme="dark"] {
+    --bs-primary: #4fc1b8;
+    --bs-primary-rgb: 79, 193, 184;
+    --bs-link-color: #4fc1b8;
+    --bs-link-color-rgb: 79, 193, 184;
+    --bs-link-hover-color: #7fd6cf;
+    --bs-link-hover-color-rgb: 127, 214, 207;
+    --brand: #4fc1b8;
+    --brand-soft: #123330;
+    --sidebar-bg: #171e25;
+    --sidebar-border: #29323b;
+    --stat-bg: #1e293b;
+    --stat-border: #2b3a52;
+    --stat-label: #94a3b8;
+    --card-bg: #1e293b;
+    --card-border: #2b3a52;
+    --label-muted: #94a3b8;
+    --value-strong: #f8fafc;
+    --bs-body-bg: #0f172a;
+    --bs-body-color: #e2e8f0;
+    --bs-secondary-bg: #1e293b;
+    --bs-border-color: #2b3a52;
+}
+
+/* Bootstrap 5.3 resolve as cores dos botões a partir de variáveis
+   próprias do componente (--bs-btn-bg etc.), não de --bs-primary
+   diretamente — por isso precisam ser sobrescritas aqui, senão o
+   botão fica com o azul padrão do Bootstrap mesmo com --bs-primary
+   customizado. */
+.btn-primary {
+    --bs-btn-bg: var(--bs-primary);
+    --bs-btn-border-color: var(--bs-primary);
+    --bs-btn-hover-bg: var(--bs-link-hover-color);
+    --bs-btn-hover-border-color: var(--bs-link-hover-color);
+    --bs-btn-active-bg: var(--bs-link-hover-color);
+    --bs-btn-active-border-color: var(--bs-link-hover-color);
+    --bs-btn-disabled-bg: var(--bs-primary);
+    --bs-btn-disabled-border-color: var(--bs-primary);
+    --bs-btn-focus-shadow-rgb: var(--bs-primary-rgb);
+}
+.btn-outline-primary {
+    --bs-btn-color: var(--bs-primary);
+    --bs-btn-border-color: var(--bs-primary);
+    --bs-btn-hover-bg: var(--bs-primary);
+    --bs-btn-hover-border-color: var(--bs-primary);
+    --bs-btn-active-bg: var(--bs-primary);
+    --bs-btn-active-border-color: var(--bs-primary);
+    --bs-btn-disabled-color: var(--bs-primary);
+    --bs-btn-disabled-border-color: var(--bs-primary);
+    --bs-btn-focus-shadow-rgb: var(--bs-primary-rgb);
+}
+
+h1, h2, h3 { color: var(--brand); }
+.subtitulo-institucional {
+    font-size: 0.78rem;
+    color: var(--label-muted);
+    margin-top: -0.1rem;
+}
+.app-footer {
+    text-align: center;
+    font-size: 0.78rem;
+    color: var(--label-muted);
+    padding: 1.5rem 0 1rem;
+}
+.card {
+    background-color: var(--card-bg);
+    border-color: var(--card-border);
+    border-top: 3px solid var(--bs-primary);
+}
+.kv-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.9rem 1.5rem;
+}
+.kv-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--label-muted);
+    margin-bottom: 0.15rem;
+}
+.kv-value { color: var(--value-strong); font-weight: 500; }
+.description-box {
+    background: var(--stat-bg);
+    border: 1px solid var(--card-border);
+    border-left: 3px solid var(--bs-primary);
+    border-radius: 8px;
+    padding: 0.9rem 1.1rem;
+    color: var(--value-strong);
+    white-space: pre-wrap;
+}
+.two-col-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+@media (max-width: 575.98px) {
+    .two-col-grid { grid-template-columns: 1fr; }
+}
+.compare-box {
+    background: var(--stat-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 0.75rem 0.9rem;
+}
+
+.timeline { list-style: none; margin: 0; padding: 0; }
+.timeline-item {
+    position: relative;
+    padding-left: 1.6rem;
+    padding-bottom: 1.1rem;
+    border-left: 2px solid var(--card-border);
+    margin-left: 0.3rem;
+}
+.timeline-item:last-child { border-left-color: transparent; padding-bottom: 0; }
+.timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -0.35rem;
+    top: 0.2rem;
+    width: 0.65rem;
+    height: 0.65rem;
+    border-radius: 50%;
+    background: var(--bs-primary);
+    border: 2px solid var(--card-bg);
+}
+.timeline-transicao {
+    font-size: 0.82rem;
+    color: var(--label-muted);
+}
+
+.avatar-circle {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.avatar-circle-lg {
+    width: 5rem;
+    height: 5rem;
+    font-size: 1.7rem;
+}
+
+.comment-card {
+    background: var(--stat-bg);
+    border: 1px solid var(--card-border);
+    border-left: 3px solid var(--card-border);
+    border-radius: 8px;
+    padding: 0.75rem 0.9rem;
+}
+.comment-card.tipo-nota_interna { border-left-color: #ffc107; }
+.comment-card.tipo-resposta_usuario { border-left-color: #0dcaf0; }
+.comment-card.tipo-desfecho { border-left-color: #198754; }
+
+.app-shell { display: flex; min-height: 100vh; align-items: flex-start; }
+
+/* position: sticky (não stretch) faz a sidebar sempre ocupar exatamente
+   1 viewport, independente da altura do conteúdo principal — sem isso,
+   páginas com pouco conteúdo esticavam a sidebar (e o rodapé do perfil
+   junto) até o tamanho de páginas longas, criando um vão vazio enorme. */
+.sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--sidebar-border);
+    display: flex;
+    flex-direction: column;
+    padding: 1.25rem 1rem;
+    transition: width 0.15s ease;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+}
+.sidebar-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+.sidebar-brand a {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-weight: 700;
+    font-size: 0.95rem;
+    line-height: 1.15;
+    color: var(--brand);
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+}
+.sidebar-brand .brand-icon {
+    height: 1.9rem;
+    width: auto;
+    flex-shrink: 0;
+}
+#toggleSidebar {
+    border: 1px solid var(--sidebar-border);
+    background: transparent;
+    color: var(--brand);
+    line-height: 1;
+    flex-shrink: 0;
+}
+.sidebar-nav {
+    margin-top: 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+.sidebar-nav a {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.55rem 0.6rem;
+    border-radius: 8px;
+    border-left: 3px solid transparent;
+    color: var(--bs-body-color);
+    text-decoration: none;
+    font-size: 0.92rem;
+    white-space: nowrap;
+}
+.sidebar-nav a:hover { background: var(--brand-soft); }
+.sidebar-nav a.active {
+    background: var(--brand-soft);
+    border-left-color: var(--bs-primary);
+    color: var(--brand);
+    font-weight: 600;
+}
+.nav-icon {
+    flex-shrink: 0;
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 6px;
+    background: var(--brand-soft);
+    color: var(--brand);
+    font-weight: 700;
+    font-size: 0.72rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.sidebar-nav a.active .nav-icon { background: var(--bs-primary); color: #fff; }
+.sidebar-nav-group-label {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--label-muted);
+    padding: 0.4rem 0.6rem 0.2rem;
+    margin-top: 0.6rem;
+}
+.sidebar-nav-group-label:first-child { margin-top: 0; }
+
+.sidebar-user {
+    margin-top: auto;
+    padding-top: 1rem;
+    border-top: 1px solid var(--sidebar-border);
+    font-size: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+}
+.theme-switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+.sidebar-profile-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+.sidebar-profile-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    text-decoration: none;
+    color: var(--bs-body-color);
+}
+.sidebar-profile-link .user-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+html[data-sidebar-collapsed="true"] .sidebar-profile-row {
+    flex-direction: column;
+}
+
+.app-main { flex: 1; min-width: 0; }
+
+.collapsed-only { display: none; }
+
+/* ---- sidebar recolhida ---- */
+html[data-sidebar-collapsed="true"] .sidebar { width: 68px; }
+html[data-sidebar-collapsed="true"] .collapsed-only { display: inline; }
+html[data-sidebar-collapsed="true"] .sidebar-brand .brand-text,
+html[data-sidebar-collapsed="true"] .sidebar-nav .link-text,
+html[data-sidebar-collapsed="true"] .sidebar-nav-group-label,
+html[data-sidebar-collapsed="true"] .sidebar-user .user-text,
+html[data-sidebar-collapsed="true"] .theme-switch-row .switch-text {
+    display: none;
+}
+html[data-sidebar-collapsed="true"] .sidebar-user,
+html[data-sidebar-collapsed="true"] .theme-switch-row {
+    align-items: center;
+}
+html[data-sidebar-collapsed="true"] .sidebar-top {
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.6rem;
+}
+
+@media (max-width: 767.98px) {
+    .app-shell { flex-direction: column; }
+    .sidebar, html[data-sidebar-collapsed="true"] .sidebar {
+        width: 100%;
+        flex-direction: row;
+        align-items: center;
+        overflow-x: auto;
+        overflow-y: visible;
+        border-right: none;
+        border-bottom: 1px solid var(--sidebar-border);
+        position: static;
+        height: auto;
+    }
+    .sidebar-top, html[data-sidebar-collapsed="true"] .sidebar-top { flex-direction: row; }
+    .sidebar-brand { margin-right: 1rem; white-space: nowrap; }
+    .sidebar-nav { flex-direction: row; margin-top: 0; }
+    .sidebar-nav a .link-text { display: inline; }
+    .sidebar-nav a { white-space: nowrap; }
+    .sidebar-nav-group-label { display: none; }
+    .sidebar-user {
+        margin-top: 0; margin-left: auto; border-top: none; padding-top: 0;
+        flex-direction: row; align-items: center; white-space: nowrap;
+    }
+    .sidebar-user .user-text { display: inline; }
+    #toggleSidebar { display: none; }
+}

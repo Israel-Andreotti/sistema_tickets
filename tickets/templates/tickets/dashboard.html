@@ -1,167 +1,17 @@
 {% extends "tickets/base.html" %}
-{% load ticket_extras %}
+{% load static ticket_extras %}
 
 {% block title %}Dashboard — Chamados de TI{% endblock %}
 
-{% block extra_css %}
-.stat-card {
-    background: var(--stat-bg);
-    border: 1px solid var(--stat-border);
-    border-left: 4px solid var(--bs-primary);
-    border-radius: 8px;
-    padding: 0.9rem 1.1rem;
-    height: 100%;
-}
-.stat-card .stat-label {
-    font-size: 0.76rem;
-    color: var(--stat-label);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-.info-icone {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 0.95rem;
-    height: 0.95rem;
-    border-radius: 50%;
-    border: 1px solid var(--card-border);
-    color: var(--label-muted);
-    font-size: 0.62rem;
-    font-weight: 700;
-    text-transform: none;
-    letter-spacing: normal;
-    cursor: help;
-    vertical-align: middle;
-}
-.stat-card .stat-value {
-    font-size: 1.7rem;
-    font-weight: 700;
-    color: var(--brand);
-    font-variant-numeric: tabular-nums;
-}
-.stat-card.stat-alerta { border-left-color: #ffc107; }
-.stat-card.stat-perigo { border-left-color: #dc3545; }
-.stat-card.stat-neutro { border-left-color: #6c757d; }
-
-.stat-value.valor-perigo { color: #dc3545; }
-.stat-value.valor-alerta { color: #b45309; }
-[data-bs-theme="dark"] .stat-value.valor-alerta { color: #fbbf24; }
-.stat-value.valor-neutro { color: var(--label-muted); }
-
-.stat-card.stat-calibragem {
-    border-left-color: var(--card-border);
-    opacity: 0.75;
-}
-.selo-calibragem {
-    display: inline-block;
-    font-size: 0.65rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--label-muted);
-    background: var(--brand-soft);
-    border-radius: 4px;
-    padding: 0.1rem 0.4rem;
-    margin-top: 0.35rem;
-}
-
-.painel-secao {
-    margin-bottom: 2rem;
-}
-.painel-titulo-texto {
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: var(--brand);
-    margin-bottom: 0.9rem;
-}
-
-.grid-5 {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 0.75rem;
-}
-@media (max-width: 992px) {
-    .grid-5 { grid-template-columns: repeat(3, 1fr); }
-}
-@media (max-width: 576px) {
-    .grid-5 { grid-template-columns: repeat(2, 1fr); }
-}
-
-.painel-analitico {
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
-    border-radius: 8px;
-    padding: 1.1rem 1.25rem;
-    height: 100%;
-}
-.painel-analitico h2 {
-    font-size: 0.95rem;
-    font-weight: 700;
-    margin-bottom: 1rem;
-}
-
-.barra-setor-linha {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    margin-bottom: 0.55rem;
-}
-.barra-setor-nome {
-    flex: 0 0 40%;
-    font-size: 0.82rem;
-    color: var(--stat-label);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.barra-setor-trilho {
-    flex: 1 1 auto;
-    background: var(--brand-soft);
-    border-radius: 4px;
-    height: 0.85rem;
-    overflow: hidden;
-}
-.barra-setor-preenchimento {
-    height: 100%;
-    background: var(--bs-primary);
-    border-radius: 4px;
-}
-.barra-setor-total {
-    flex: 0 0 1.8rem;
-    text-align: right;
-    font-size: 0.82rem;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    color: var(--brand);
-}
-
-.tabela-criticos { font-size: 0.85rem; }
-.tabela-criticos td { vertical-align: middle; padding: 0.4rem 0.3rem; }
-.tabela-criticos tbody tr { cursor: pointer; }
-
-.fluxo-svg { width: 100%; height: auto; }
-.fluxo-legenda {
-    display: flex;
-    gap: 1.25rem;
-    font-size: 0.78rem;
-    color: var(--stat-label);
-    margin-bottom: 0.75rem;
-}
-.fluxo-legenda-marca {
-    display: inline-block;
-    width: 0.75rem;
-    height: 0.75rem;
-    border-radius: 2px;
-    margin-right: 0.35rem;
-    vertical-align: middle;
-}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'tickets/css/dashboard.css' %}">
 {% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-1">
+<div class="d-flex justify-content-between align-items-center mb-0">
     <h1 class="h4 mb-0">Dashboard</h1>
 </div>
+<p class="subtitulo-institucional mb-1">Central de Serviços de Tecnologia da Informação — HCSL</p>
 <p class="text-muted small mb-4">
     Visão geral do estado atual da fila de chamados.
 </p>
