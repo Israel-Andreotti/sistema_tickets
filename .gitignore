@@ -6,3 +6,4 @@ db.sqlite3
 staticfiles/
 media/
 .claude/settings.local.json
+docs/

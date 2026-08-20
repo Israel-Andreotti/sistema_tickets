@@ -285,12 +285,19 @@ h1, h2, h3 { color: var(--brand); }
     flex-direction: column;
     gap: 0.7rem;
 }
-.theme-switch-row {
-    display: flex;
+.theme-toggle-btn {
+    display: inline-flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    flex-shrink: 0;
+    border: 1px solid var(--sidebar-border);
+    background: transparent;
+    color: var(--label-muted);
+    border-radius: 6px;
 }
+.theme-toggle-btn:hover { background: var(--brand-soft); color: var(--brand); }
 .sidebar-profile-row {
     display: flex;
     align-items: center;
@@ -321,15 +328,21 @@ html[data-sidebar-collapsed="true"] .sidebar-profile-row {
 /* ---- sidebar recolhida ---- */
 html[data-sidebar-collapsed="true"] .sidebar { width: 68px; }
 html[data-sidebar-collapsed="true"] .collapsed-only { display: inline; }
+/* sem o texto do link, o ícone precisa ficar centralizado no espaço todo —
+   senão sobra o padding original do link e ele fica puxado pra esquerda,
+   desalinhado com o logo/avatar/botões que já são centralizados. */
+html[data-sidebar-collapsed="true"] .sidebar-nav a {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+}
 html[data-sidebar-collapsed="true"] .sidebar-brand .brand-text,
 html[data-sidebar-collapsed="true"] .sidebar-nav .link-text,
 html[data-sidebar-collapsed="true"] .sidebar-nav-group-label,
-html[data-sidebar-collapsed="true"] .sidebar-user .user-text,
-html[data-sidebar-collapsed="true"] .theme-switch-row .switch-text {
+html[data-sidebar-collapsed="true"] .sidebar-user .user-text {
     display: none;
 }
-html[data-sidebar-collapsed="true"] .sidebar-user,
-html[data-sidebar-collapsed="true"] .theme-switch-row {
+html[data-sidebar-collapsed="true"] .sidebar-user {
     align-items: center;
 }
 html[data-sidebar-collapsed="true"] .sidebar-top {
@@ -338,29 +351,105 @@ html[data-sidebar-collapsed="true"] .sidebar-top {
     gap: 0.6rem;
 }
 
+/* ---- barra e menu mobile (hamburger) ---- */
+.mobile-topbar, .mobile-backdrop { display: none; }
+
 @media (max-width: 767.98px) {
     .app-shell { flex-direction: column; }
-    .sidebar, html[data-sidebar-collapsed="true"] .sidebar {
-        width: 100%;
-        flex-direction: row;
+
+    .mobile-topbar {
+        display: flex;
         align-items: center;
-        overflow-x: auto;
-        overflow-y: visible;
-        border-right: none;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        background: var(--sidebar-bg);
         border-bottom: 1px solid var(--sidebar-border);
-        position: static;
-        height: auto;
+        position: sticky;
+        top: 0;
+        z-index: 1030;
     }
-    .sidebar-top, html[data-sidebar-collapsed="true"] .sidebar-top { flex-direction: row; }
-    .sidebar-brand { margin-right: 1rem; white-space: nowrap; }
-    .sidebar-nav { flex-direction: row; margin-top: 0; }
+    .mobile-menu-btn {
+        border: 1px solid var(--sidebar-border);
+        background: transparent;
+        color: var(--brand);
+        border-radius: 6px;
+        width: 2.25rem;
+        height: 2.25rem;
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .mobile-topbar-brand {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 700;
+        font-size: 0.92rem;
+        color: var(--brand);
+        text-decoration: none;
+        overflow: hidden;
+        white-space: nowrap;
+    }
+    .mobile-topbar-brand .brand-icon { height: 1.6rem; width: auto; flex-shrink: 0; }
+
+    /* a sidebar vira uma gaveta deslizante, escondida por padrão */
+    .sidebar, html[data-sidebar-collapsed="true"] .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 260px;
+        max-width: 82vw;
+        height: 100vh;
+        flex-direction: column;
+        align-items: stretch;
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        z-index: 1045;
+        overflow-y: auto;
+        border-right: 1px solid var(--sidebar-border);
+        border-bottom: none;
+    }
+    html[data-mobile-menu-aberto="true"] .sidebar {
+        transform: translateX(0);
+    }
+    .sidebar-top { display: none; } /* a marca já aparece na topbar mobile */
+    .sidebar-nav { flex-direction: column; margin-top: 0.5rem; }
     .sidebar-nav a .link-text { display: inline; }
-    .sidebar-nav a { white-space: nowrap; }
-    .sidebar-nav-group-label { display: none; }
-    .sidebar-user {
-        margin-top: 0; margin-left: auto; border-top: none; padding-top: 0;
-        flex-direction: row; align-items: center; white-space: nowrap;
+    .sidebar-nav-group-label { display: block; }
+    .sidebar-user, html[data-sidebar-collapsed="true"] .sidebar-user {
+        margin-top: auto;
+        flex-direction: column;
+        align-items: stretch;
+        border-top: 1px solid var(--sidebar-border);
+        padding-top: 1rem;
     }
     .sidebar-user .user-text { display: inline; }
     #toggleSidebar { display: none; }
+
+    /* a gaveta mobile sempre mostra tudo por extenso, mesmo que o usuário
+       tenha colapsado a sidebar numa sessão desktop anterior (o estado é
+       persistido em localStorage e vale pros dois breakpoints por padrão) */
+    html[data-sidebar-collapsed="true"] .sidebar-nav .link-text,
+    html[data-sidebar-collapsed="true"] .sidebar-user .user-text {
+        display: inline;
+    }
+    html[data-sidebar-collapsed="true"] .sidebar-nav-group-label {
+        display: block;
+    }
+
+    .mobile-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        z-index: 1040;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+    }
+    html[data-mobile-menu-aberto="true"] .mobile-backdrop {
+        opacity: 1;
+        pointer-events: auto;
+    }
 }

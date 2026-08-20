@@ -6,7 +6,8 @@ from django.contrib.auth import get_user_model, update_session_auth_hash
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
-from django.db.models import Avg, Q
+from django.db.models import Avg, Count, OuterRef, Q, Subquery
+from django.db.models.functions import TruncDate
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -354,12 +355,22 @@ def dashboard_view(request):
     ).aggregate(media=Avg("tempo_real"))["media"]
 
     # MTTA (tempo até a primeira resposta) não tem campo próprio — aproxima
-    # pelo primeiro comentário do técnico em cada chamado aberto na semana.
+    # pelo primeiro comentário em cada chamado aberto na semana. Subquery
+    # correlacionada traz só o timestamp do primeiro comentário de cada
+    # ticket direto do banco — nem um SELECT por ticket (N+1), nem os
+    # comentários inteiros sendo carregados (como um prefetch_related faria).
+    primeiro_comentario_em = (
+        ComentarioTicket.objects.filter(ticket=OuterRef("pk"))
+        .order_by("criado_em")
+        .values("criado_em")[:1]
+    )
+    tickets_com_primeira_resposta = Ticket.objects.filter(data_abertura__gte=desde_semana).annotate(
+        primeira_resposta_em=Subquery(primeiro_comentario_em)
+    )
     tempos_primeira_resposta = []
-    for ticket in Ticket.objects.filter(data_abertura__gte=desde_semana):
-        primeiro_comentario = ticket.comentarios.order_by("criado_em").first()
-        if primeiro_comentario:
-            horas = (primeiro_comentario.criado_em - ticket.data_abertura).total_seconds() / 3600
+    for ticket in tickets_com_primeira_resposta:
+        if ticket.primeira_resposta_em:
+            horas = (ticket.primeira_resposta_em - ticket.data_abertura).total_seconds() / 3600
             tempos_primeira_resposta.append(horas)
     mtta = sum(tempos_primeira_resposta) / len(tempos_primeira_resposta) if tempos_primeira_resposta else None
 
@@ -370,12 +381,34 @@ def dashboard_view(request):
         "mtta_formatado": _formatar_horas(mtta),
     }
 
+    # Volume diário dos últimos 7 dias: uma consulta agregada por campo de
+    # data (abertura/fechamento) em vez de duas consultas por dia no loop.
+    inicio_grafico = hoje - timedelta(days=6)
+    abertos_por_dia = {
+        linha["dia"]: linha["total"]
+        for linha in (
+            Ticket.objects.filter(data_abertura__date__gte=inicio_grafico)
+            .annotate(dia=TruncDate("data_abertura"))
+            .values("dia")
+            .annotate(total=Count("id"))
+        )
+    }
+    fechados_por_dia = {
+        linha["dia"]: linha["total"]
+        for linha in (
+            Ticket.objects.filter(data_fechamento__date__gte=inicio_grafico)
+            .annotate(dia=TruncDate("data_fechamento"))
+            .values("dia")
+            .annotate(total=Count("id"))
+        )
+    }
+
     fluxo_diario = []
     maior_volume_dia = 0
     for i in range(6, -1, -1):
         dia = hoje - timedelta(days=i)
-        abertos_dia = Ticket.objects.filter(data_abertura__date=dia).count()
-        fechados_dia = Ticket.objects.filter(data_fechamento__date=dia).count()
+        abertos_dia = abertos_por_dia.get(dia, 0)
+        fechados_dia = fechados_por_dia.get(dia, 0)
         maior_volume_dia = max(maior_volume_dia, abertos_dia, fechados_dia)
         fluxo_diario.append({"dia": dia, "abertos": abertos_dia, "fechados": fechados_dia})
 

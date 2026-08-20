@@ -3,15 +3,22 @@ document.addEventListener('DOMContentLoaded', function () {
     var categoriaSelect = document.getElementById('id_categoria_sugerida');
     var campoPatrimonio = document.getElementById('campo-patrimonio');
     var inputPatrimonio = document.getElementById('id_patrimonio');
+    var campoNivelAtendimento = document.getElementById('campo-nivel-atendimento');
 
+    // Quando o patrimônio não aparece, "Nível de atendimento" ocupa a linha
+    // toda — senão sobra um vão vazio ao lado dele (metade da linha sem uso).
     function atualizarVisibilidade() {
         var opcaoSelecionada = categoriaSelect.options[categoriaSelect.selectedIndex];
         var requerPatrimonio = opcaoSelecionada ? opcaoSelecionada.getAttribute('data-requer-patrimonio') : null;
         if (requerPatrimonio === 'true') {
             campoPatrimonio.classList.remove('d-none');
+            campoNivelAtendimento.classList.remove('col-md-12');
+            campoNivelAtendimento.classList.add('col-md-6');
         } else {
             campoPatrimonio.classList.add('d-none');
             inputPatrimonio.value = '';
+            campoNivelAtendimento.classList.remove('col-md-6');
+            campoNivelAtendimento.classList.add('col-md-12');
         }
     }
 

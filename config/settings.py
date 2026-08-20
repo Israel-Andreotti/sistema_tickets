@@ -52,6 +52,14 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+# Debug Toolbar só entra em ambiente de desenvolvimento (DEBUG=True) — nunca
+# deve ser instalado/carregado em produção, daí o gate aqui em vez de deixar
+# fixo em INSTALLED_APPS/MIDDLEWARE.
+if DEBUG:
+    INSTALLED_APPS += ['debug_toolbar']
+    MIDDLEWARE.insert(1, 'debug_toolbar.middleware.DebugToolbarMiddleware')
+    INTERNAL_IPS = ['127.0.0.1']
+
 ROOT_URLCONF = 'config.urls'
 
 TEMPLATES = [
