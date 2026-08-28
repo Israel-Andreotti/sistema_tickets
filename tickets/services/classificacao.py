@@ -6,7 +6,8 @@ RN02 — a IA analisa a descrição e determina sua própria categoria (categori
 RN03 — o técnico vê as duas lado a lado e confirma/corrige a classificação final.
 RN04 — apenas categoria_final alimenta cálculo de SLA e prioridade.
 """
-from ..models import Categoria, ItemConfiguracao, Setor, Ticket
+from ..models import Categoria, ItemConfiguracao, Notificacao, Setor, Ticket
+from .notificacoes import notificar
 from .prioridade import calcular_prioridade
 
 
@@ -51,9 +52,15 @@ def atribuir_tecnico(ticket: Ticket, tecnico) -> Ticket:
     Passa o chamado para "em atendimento" automaticamente, caso ainda esteja "aberto".
     """
     ticket.tecnico_responsavel = tecnico
-    if ticket.status == Ticket.Status.ABERTO:
+    vai_iniciar_atendimento = ticket.status == Ticket.Status.ABERTO
+    if vai_iniciar_atendimento:
         ticket.status = Ticket.Status.EM_ATENDIMENTO
     ticket.save(update_fields=["tecnico_responsavel", "status"])
+    if vai_iniciar_atendimento:
+        notificar(
+            ticket, Notificacao.Tipo.MUDANCA_STATUS,
+            f"Seu chamado #{ticket.pk} entrou em atendimento.",
+        )
     return ticket
 
 
@@ -65,7 +72,13 @@ def confirmar_classificacao_final(ticket: Ticket, categoria_final: Categoria) ->
     """
     ticket.categoria_final = categoria_final
     ticket.prioridade_calculada = calcular_prioridade(categoria_final, ticket.setor)
-    if ticket.status == Ticket.Status.ABERTO:
+    vai_iniciar_atendimento = ticket.status == Ticket.Status.ABERTO
+    if vai_iniciar_atendimento:
         ticket.status = Ticket.Status.EM_ATENDIMENTO
     ticket.save(update_fields=["categoria_final", "prioridade_calculada", "status"])
+    if vai_iniciar_atendimento:
+        notificar(
+            ticket, Notificacao.Tipo.MUDANCA_STATUS,
+            f"Seu chamado #{ticket.pk} entrou em atendimento.",
+        )
     return ticket

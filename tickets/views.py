@@ -12,6 +12,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 
 from .forms import (
@@ -20,6 +21,7 @@ from .forms import (
     CadastrarEquipamentoForm,
     ComentarioForm,
     ConfirmarClassificacaoForm,
+    EditarPerfilForm,
     TrocarSenhaForm,
 )
 from .models import (
@@ -28,6 +30,7 @@ from .models import (
     ComentarioTicket,
     HistoricoSLA,
     ItemConfiguracao,
+    Notificacao,
     Setor,
     Ticket,
 )
@@ -40,6 +43,7 @@ from .services.equipamento import (
     obter_setor_ti,
     registrar_sem_movimentacao,
 )
+from .services.notificacoes import marcar_como_lida, marcar_todas_como_lidas, notificar
 from .services.parametros import ParametroNaoConfigurado
 from .services.sla import fechar_ticket
 
@@ -57,6 +61,11 @@ def _tem_acesso_operacional(user):
 tecnico_required = user_passes_test(_tem_acesso_operacional, login_url="login")
 acesso_equipamentos_required = tecnico_required
 ver_slas_required = tecnico_required
+
+
+@login_required
+def portal_view(request):
+    return render(request, "tickets/portal.html")
 
 
 def obter_ip_cliente(request):
@@ -101,6 +110,7 @@ def abrir_ticket_view(request):
 
 
 @login_required
+@never_cache
 def meus_tickets_view(request):
     numero = request.GET.get("numero", "").strip()
     data_de = request.GET.get("data_de", "").strip()
@@ -139,6 +149,7 @@ def meus_tickets_view(request):
 
 
 @login_required
+@never_cache
 def meu_ticket_detalhe_view(request, pk):
     ticket = get_object_or_404(
         Ticket.objects.select_related("categoria_sugerida", "categoria_final", "setor", "tecnico_responsavel"),
@@ -156,6 +167,44 @@ def meu_ticket_detalhe_view(request, pk):
         }[comentario.tipo]
 
     return render(request, "tickets/meu_ticket_detalhe.html", {"ticket": ticket, "comentarios": comentarios})
+
+
+@login_required
+@never_cache
+def notificacoes_view(request):
+    notificacoes = Notificacao.objects.filter(destinatario=request.user).select_related("ticket")
+    paginator = Paginator(notificacoes, 20)
+    pagina = paginator.get_page(request.GET.get("pagina"))
+    return render(request, "tickets/notificacoes.html", {"pagina": pagina})
+
+
+@login_required
+@never_cache
+def notificacoes_dropdown_view(request):
+    notificacoes = Notificacao.objects.filter(destinatario=request.user).select_related("ticket")[:8]
+    return render(request, "tickets/_notificacoes_dropdown.html", {"notificacoes": notificacoes})
+
+
+@login_required
+@never_cache
+def notificacoes_novas_view(request):
+    total_nao_lidas = Notificacao.objects.filter(destinatario=request.user, lida=False).count()
+    return JsonResponse({"total_nao_lidas": total_nao_lidas})
+
+
+@login_required
+@require_POST
+def marcar_notificacao_lida_view(request, pk):
+    notificacao = get_object_or_404(Notificacao, pk=pk, destinatario=request.user)
+    marcar_como_lida(notificacao)
+    return redirect("tickets:meu_ticket_detalhe", pk=notificacao.ticket_id)
+
+
+@login_required
+@require_POST
+def marcar_todas_notificacoes_lidas_view(request):
+    marcar_todas_como_lidas(request.user)
+    return redirect(request.META.get("HTTP_REFERER") or reverse("tickets:notificacoes"))
 
 
 def _cargo_usuario(usuario):
@@ -177,28 +226,41 @@ def _cargo_usuario(usuario):
 
 
 @login_required
+@never_cache
 def perfil_view(request, username):
     usuario = get_object_or_404(get_user_model(), username=username)
     eh_proprio_perfil = usuario == request.user
 
-    # Só quem está vendo o próprio perfil enxerga/usa o formulário de senha —
-    # pra qualquer outra pessoa, a tela é só a parte pública (nome, cargo, avatar).
+    # Só quem está vendo o próprio perfil enxerga/usa os formulários de senha
+    # e de dados de contato — pra qualquer outra pessoa, a tela é só a parte
+    # pública (nome, cargo, avatar).
     form_senha = None
+    form_perfil = None
     if eh_proprio_perfil:
-        if request.method == "POST":
+        if request.method == "POST" and request.POST.get("form") == "senha":
             form_senha = TrocarSenhaForm(user=request.user, data=request.POST)
+            form_perfil = EditarPerfilForm(instance=usuario)
             if form_senha.is_valid():
                 form_senha.save()
                 update_session_auth_hash(request, form_senha.user)
                 messages.success(request, "Senha alterada com sucesso.")
                 return redirect("tickets:perfil", username=usuario.username)
+        elif request.method == "POST" and request.POST.get("form") == "perfil":
+            form_perfil = EditarPerfilForm(request.POST, instance=usuario)
+            form_senha = TrocarSenhaForm(user=request.user)
+            if form_perfil.is_valid():
+                form_perfil.save()
+                messages.success(request, "Dados de contato atualizados com sucesso.")
+                return redirect("tickets:perfil", username=usuario.username)
         else:
             form_senha = TrocarSenhaForm(user=request.user)
+            form_perfil = EditarPerfilForm(instance=usuario)
 
     return render(request, "tickets/perfil.html", {
         "usuario": usuario,
         "cargo": _cargo_usuario(usuario),
         "form_senha": form_senha,
+        "form_perfil": form_perfil,
         "eh_proprio_perfil": eh_proprio_perfil,
     })
 
@@ -580,6 +642,7 @@ def _contexto_detalhe_ticket(ticket, *, patrimonio_saida_valor=None, patrimonio_
 
 
 @tecnico_required
+@never_cache
 def detalhe_ticket_view(request, pk):
     ticket = _obter_ticket_detalhe(pk)
     return render(request, "tickets/detalhe_ticket.html", _contexto_detalhe_ticket(ticket))
@@ -595,6 +658,15 @@ def adicionar_comentario_view(request, pk):
         comentario.ticket = ticket
         comentario.autor = request.user
         comentario.save()
+        if comentario.tipo in (ComentarioTicket.Tipo.RESPOSTA_USUARIO, ComentarioTicket.Tipo.DESFECHO):
+            rotulo = (
+                "uma nova resposta" if comentario.tipo == ComentarioTicket.Tipo.RESPOSTA_USUARIO
+                else "o desfecho"
+            )
+            notificar(
+                ticket, Notificacao.Tipo.NOVO_COMENTARIO,
+                f"O técnico adicionou {rotulo} ao seu chamado #{ticket.pk}.",
+            )
         messages.success(request, "Comentário adicionado.")
     else:
         messages.error(request, "Escreva algo antes de enviar o comentário.")

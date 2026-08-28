@@ -59,6 +59,12 @@ document.addEventListener('DOMContentLoaded', function () {
     grupoSelect.addEventListener('change', priorizarPorGrupo);
     categoriaSelect.addEventListener('change', atualizarVisibilidade);
     atualizarVisibilidade();
+    // Reaplica a priorização já no carregamento — necessário quando a página
+    // volta com "grupo" já preenchido (erro de validação em outro campo,
+    // como categoria não selecionada), já que o evento "change" do grupo só
+    // dispara com uma interação do usuário, não com o valor pré-selecionado
+    // vindo do servidor.
+    priorizarPorGrupo();
 
     // Busca de setor: o <select> real fica escondido (d-none) e continua
     // sendo o que é de fato enviado no formulário; o campo de texto só

@@ -139,8 +139,8 @@ MESSAGE_TAGS = {
 }
 
 LOGIN_URL = 'login'
-LOGIN_REDIRECT_URL = 'tickets:abrir_ticket'
-LOGOUT_REDIRECT_URL = 'tickets:abrir_ticket'
+LOGIN_REDIRECT_URL = 'tickets:portal'
+LOGOUT_REDIRECT_URL = 'tickets:portal'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

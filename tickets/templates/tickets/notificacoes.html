@@ -1,0 +1,61 @@
+{% extends "tickets/base.html" %}
+
+{% block title %}Notificações — Chamados de TI{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-1 flex-wrap gap-2">
+    <h1 class="h4 mb-0">Notificações</h1>
+    {% if pagina.paginator.count %}
+    <form method="post" action="{% url 'tickets:marcar_todas_notificacoes_lidas' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline-secondary btn-sm">Marcar todas como lidas</button>
+    </form>
+    {% endif %}
+</div>
+<p class="subtitulo-institucional mb-4">Avisos sobre mudança de status e respostas dos seus chamados</p>
+
+{% if pagina %}
+<div class="d-flex flex-column gap-2">
+    {% for notificacao in pagina %}
+    <form method="post" action="{% url 'tickets:marcar_notificacao_lida' notificacao.pk %}" class="notificacao-lista-form">
+        {% csrf_token %}
+        <button type="submit" class="notificacao-lista-item {% if not notificacao.lida %}nao-lida{% endif %}">
+            <span class="notificacao-status" aria-hidden="true"></span>
+            <span class="notificacao-corpo">
+                <span class="d-flex align-items-center flex-wrap gap-2 mb-1">
+                    <span class="badge {% if notificacao.tipo == 'novo_comentario' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                        {{ notificacao.get_tipo_display }}
+                    </span>
+                    {% if not notificacao.lida %}<span class="badge bg-primary">Não lida</span>{% endif %}
+                </span>
+                <span class="notificacao-mensagem">{{ notificacao.mensagem }}</span>
+                <span class="notificacao-data">{{ notificacao.criado_em|date:"d/m/Y H:i" }}</span>
+            </span>
+        </button>
+    </form>
+    {% empty %}
+    <p class="text-muted small">Você ainda não recebeu nenhuma notificação.</p>
+    {% endfor %}
+</div>
+
+{% if pagina.paginator.num_pages > 1 %}
+<nav aria-label="Paginação das notificações" class="mt-3">
+    <ul class="pagination pagination-sm">
+        {% if pagina.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?pagina={{ pagina.previous_page_number }}">Anterior</a>
+            </li>
+        {% endif %}
+        <li class="page-item disabled">
+            <span class="page-link">Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}</span>
+        </li>
+        {% if pagina.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?pagina={{ pagina.next_page_number }}">Próxima</a>
+            </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endif %}
+{% endblock %}

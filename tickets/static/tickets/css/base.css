@@ -16,6 +16,7 @@
     --card-border: #e1e4e9;
     --label-muted: #5b6672;
     --value-strong: #131a22;
+    --altura-topbar: 4rem;
 }
 [data-bs-theme="dark"] {
     --bs-primary: #4fc1b8;
@@ -177,12 +178,58 @@ h1, h2, h3 { color: var(--brand); }
 .comment-card.tipo-resposta_usuario { border-left-color: #0dcaf0; }
 .comment-card.tipo-desfecho { border-left-color: #198754; }
 
-.app-shell { display: flex; min-height: 100vh; align-items: flex-start; }
+/* ---- barra superior fixa: marca + tema + usuário, em toda página ---- */
+.app-topbar {
+    height: var(--altura-topbar);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0 1.5rem;
+    border-bottom: 1px solid var(--card-border);
+    background: var(--sidebar-bg);
+    position: sticky;
+    top: 0;
+    z-index: 1050;
+}
+.app-topbar-marca {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--brand);
+    text-decoration: none;
+    white-space: nowrap;
+}
+.app-topbar-marca .brand-icon {
+    height: 1.9rem;
+    width: auto;
+    flex-shrink: 0;
+}
+.app-topbar-acoes {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+.app-topbar-usuario {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    color: var(--bs-body-color);
+}
+.app-topbar-usuario-nome {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.app-shell { display: flex; min-height: calc(100vh - var(--altura-topbar)); align-items: flex-start; }
 
 /* position: sticky (não stretch) faz a sidebar sempre ocupar exatamente
-   1 viewport, independente da altura do conteúdo principal — sem isso,
-   páginas com pouco conteúdo esticavam a sidebar (e o rodapé do perfil
-   junto) até o tamanho de páginas longas, criando um vão vazio enorme. */
+   a altura disponível abaixo da topbar, independente do conteúdo principal —
+   sem isso, páginas com pouco conteúdo esticavam a sidebar até o tamanho de
+   páginas longas, criando um vão vazio enorme. */
 .sidebar {
     width: 240px;
     flex-shrink: 0;
@@ -193,32 +240,14 @@ h1, h2, h3 { color: var(--brand); }
     padding: 1.25rem 1rem;
     transition: width 0.15s ease;
     position: sticky;
-    top: 0;
-    height: 100vh;
+    top: var(--altura-topbar);
+    height: calc(100vh - var(--altura-topbar));
     overflow-y: auto;
 }
 .sidebar-top {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-}
-.sidebar-brand a {
-    display: flex;
-    align-items: center;
-    gap: 0.55rem;
-    font-weight: 700;
-    font-size: 0.95rem;
-    line-height: 1.15;
-    color: var(--brand);
-    text-decoration: none;
-    white-space: nowrap;
-    overflow: hidden;
-}
-.sidebar-brand .brand-icon {
-    height: 1.9rem;
-    width: auto;
-    flex-shrink: 0;
+    justify-content: flex-end;
 }
 #toggleSidebar {
     border: 1px solid var(--sidebar-border);
@@ -228,7 +257,7 @@ h1, h2, h3 { color: var(--brand); }
     flex-shrink: 0;
 }
 .sidebar-nav {
-    margin-top: 1.75rem;
+    margin-top: 1rem;
     display: flex;
     flex-direction: column;
     gap: 0.15rem;
@@ -276,15 +305,6 @@ h1, h2, h3 { color: var(--brand); }
 }
 .sidebar-nav-group-label:first-child { margin-top: 0; }
 
-.sidebar-user {
-    margin-top: auto;
-    padding-top: 1rem;
-    border-top: 1px solid var(--sidebar-border);
-    font-size: 0.85rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.7rem;
-}
 .theme-toggle-btn {
     display: inline-flex;
     align-items: center;
@@ -298,36 +318,100 @@ h1, h2, h3 { color: var(--brand); }
     border-radius: 6px;
 }
 .theme-toggle-btn:hover { background: var(--brand-soft); color: var(--brand); }
-.sidebar-profile-row {
-    display: flex;
+
+.notificacao-dropdown { position: relative; }
+.notificacao-btn {
+    display: inline-flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    flex-shrink: 0;
+    border: 1px solid var(--sidebar-border);
+    background: transparent;
+    color: var(--label-muted);
+    border-radius: 6px;
+    position: relative;
 }
-.sidebar-profile-link {
+.notificacao-btn:hover { background: var(--brand-soft); color: var(--brand); }
+.notificacao-badge {
+    position: absolute;
+    top: -0.35rem;
+    right: -0.35rem;
+    min-width: 1.1rem;
+    height: 1.1rem;
+    padding: 0 0.25rem;
+    border-radius: 999px;
+    background: #dc3545;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    line-height: 1.1rem;
+    text-align: center;
+}
+.notificacao-menu {
+    width: 340px;
+    max-width: calc(100vw - 2rem);
+    max-height: 70vh;
+    overflow-y: auto;
+    padding: 0.4rem;
+}
+.notificacao-form, .notificacao-lista-form { margin: 0; }
+.notificacao-item, .notificacao-lista-item {
     display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-width: 0;
-    text-decoration: none;
+    align-items: flex-start;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.55rem 0.6rem;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    text-align: left;
     color: var(--bs-body-color);
 }
-.sidebar-profile-link .user-text {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+.notificacao-item:hover, .notificacao-lista-item:hover { background: var(--brand-soft); }
+.notificacao-status {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    margin-top: 0.4rem;
+    flex-shrink: 0;
+    background: transparent;
 }
-html[data-sidebar-collapsed="true"] .sidebar-profile-row {
-    flex-direction: column;
+.notificacao-item.nao-lida .notificacao-status,
+.notificacao-lista-item.nao-lida .notificacao-status { background: var(--bs-primary); }
+.notificacao-corpo { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.notificacao-mensagem { font-size: 0.85rem; white-space: normal; }
+.notificacao-item.nao-lida .notificacao-mensagem,
+.notificacao-lista-item.nao-lida .notificacao-mensagem { font-weight: 600; }
+.notificacao-data { font-size: 0.72rem; color: var(--label-muted); }
+.notificacao-ver-todas {
+    display: block;
+    text-align: center;
+    padding: 0.5rem;
+    font-size: 0.82rem;
+    border-top: 1px solid var(--card-border);
+    margin-top: 0.3rem;
 }
+.notificacao-vazio {
+    padding: 0.75rem;
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--label-muted);
+    text-align: center;
+}
+.notificacao-lista-item {
+    border: 1px solid var(--card-border);
+    background: var(--card-bg);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+}
+.notificacao-lista-item.nao-lida { border-left: 3px solid var(--bs-primary); }
 
-.app-main { flex: 1; min-width: 0; }
-
-.collapsed-only { display: none; }
+.app-main { flex: 1; min-width: 0; max-width: 100%; }
 
 /* ---- sidebar recolhida ---- */
 html[data-sidebar-collapsed="true"] .sidebar { width: 68px; }
-html[data-sidebar-collapsed="true"] .collapsed-only { display: inline; }
 /* sem o texto do link, o ícone precisa ficar centralizado no espaço todo —
    senão sobra o padding original do link e ele fica puxado pra esquerda,
    desalinhado com o logo/avatar/botões que já são centralizados. */
@@ -336,19 +420,9 @@ html[data-sidebar-collapsed="true"] .sidebar-nav a {
     padding-left: 0;
     padding-right: 0;
 }
-html[data-sidebar-collapsed="true"] .sidebar-brand .brand-text,
 html[data-sidebar-collapsed="true"] .sidebar-nav .link-text,
-html[data-sidebar-collapsed="true"] .sidebar-nav-group-label,
-html[data-sidebar-collapsed="true"] .sidebar-user .user-text {
+html[data-sidebar-collapsed="true"] .sidebar-nav-group-label {
     display: none;
-}
-html[data-sidebar-collapsed="true"] .sidebar-user {
-    align-items: center;
-}
-html[data-sidebar-collapsed="true"] .sidebar-top {
-    flex-direction: column;
-    justify-content: center;
-    gap: 0.6rem;
 }
 
 /* ---- barra e menu mobile (hamburger) ---- */
@@ -357,15 +431,17 @@ html[data-sidebar-collapsed="true"] .sidebar-top {
 @media (max-width: 767.98px) {
     .app-shell { flex-direction: column; }
 
+    .app-topbar { padding: 0 1rem; }
+    .app-topbar-marca span { display: none; } /* só o ícone cabe ao lado das ações no mobile */
+
     .mobile-topbar {
         display: flex;
         align-items: center;
-        gap: 0.75rem;
-        padding: 0.75rem 1rem;
+        padding: 0.5rem 1rem;
         background: var(--sidebar-bg);
         border-bottom: 1px solid var(--sidebar-border);
         position: sticky;
-        top: 0;
+        top: var(--altura-topbar);
         z-index: 1030;
     }
     .mobile-menu-btn {
@@ -380,27 +456,15 @@ html[data-sidebar-collapsed="true"] .sidebar-top {
         align-items: center;
         justify-content: center;
     }
-    .mobile-topbar-brand {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        font-weight: 700;
-        font-size: 0.92rem;
-        color: var(--brand);
-        text-decoration: none;
-        overflow: hidden;
-        white-space: nowrap;
-    }
-    .mobile-topbar-brand .brand-icon { height: 1.6rem; width: auto; flex-shrink: 0; }
 
     /* a sidebar vira uma gaveta deslizante, escondida por padrão */
     .sidebar, html[data-sidebar-collapsed="true"] .sidebar {
         position: fixed;
-        top: 0;
+        top: var(--altura-topbar);
         left: 0;
         width: 260px;
         max-width: 82vw;
-        height: 100vh;
+        height: calc(100vh - var(--altura-topbar));
         flex-direction: column;
         align-items: stretch;
         transform: translateX(-100%);
@@ -413,25 +477,16 @@ html[data-sidebar-collapsed="true"] .sidebar-top {
     html[data-mobile-menu-aberto="true"] .sidebar {
         transform: translateX(0);
     }
-    .sidebar-top { display: none; } /* a marca já aparece na topbar mobile */
+    .sidebar-top { display: none; } /* o botão de colapsar não faz sentido na gaveta mobile */
     .sidebar-nav { flex-direction: column; margin-top: 0.5rem; }
     .sidebar-nav a .link-text { display: inline; }
     .sidebar-nav-group-label { display: block; }
-    .sidebar-user, html[data-sidebar-collapsed="true"] .sidebar-user {
-        margin-top: auto;
-        flex-direction: column;
-        align-items: stretch;
-        border-top: 1px solid var(--sidebar-border);
-        padding-top: 1rem;
-    }
-    .sidebar-user .user-text { display: inline; }
     #toggleSidebar { display: none; }
 
     /* a gaveta mobile sempre mostra tudo por extenso, mesmo que o usuário
        tenha colapsado a sidebar numa sessão desktop anterior (o estado é
        persistido em localStorage e vale pros dois breakpoints por padrão) */
-    html[data-sidebar-collapsed="true"] .sidebar-nav .link-text,
-    html[data-sidebar-collapsed="true"] .sidebar-user .user-text {
+    html[data-sidebar-collapsed="true"] .sidebar-nav .link-text {
         display: inline;
     }
     html[data-sidebar-collapsed="true"] .sidebar-nav-group-label {

@@ -15,6 +15,52 @@
     {% block extra_head %}{% endblock %}
 </head>
 <body>
+    <header class="app-topbar">
+        <a href="{% url 'tickets:portal' %}" class="app-topbar-marca">
+            <img src="{% static 'tickets/img/logo-icon.png' %}" alt="" class="brand-icon">
+            <span>Hospital Central São Lucas</span>
+        </a>
+        <div class="app-topbar-acoes">
+            <button type="button" id="themeToggleBtn" class="theme-toggle-btn" aria-label="Alternar tema claro/escuro" title="Alternar tema claro/escuro">
+                <svg id="iconeSol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18" class="d-none">
+                    <circle cx="12" cy="12" r="5"/>
+                    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                </svg>
+                <svg id="iconeLua" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18" class="d-none">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/>
+                </svg>
+            </button>
+            {% if user.is_authenticated %}
+                <div class="dropdown notificacao-dropdown" id="notificacaoDropdownWrapper">
+                    <button
+                        type="button" id="notificacaoBtn" class="notificacao-btn"
+                        data-bs-toggle="dropdown" data-url-dropdown="{% url 'tickets:notificacoes_dropdown' %}"
+                        data-url-novas="{% url 'tickets:notificacoes_novas' %}"
+                        aria-expanded="false" aria-label="Notificações" title="Notificações">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                        </svg>
+                        <span id="notificacaoBadge" class="notificacao-badge {% if not notificacoes_nao_lidas %}d-none{% endif %}">{{ notificacoes_nao_lidas }}</span>
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end notificacao-menu" id="notificacaoMenu" aria-labelledby="notificacaoBtn">
+                        <p class="notificacao-vazio">Carregando…</p>
+                    </div>
+                </div>
+                {% with nome=user.get_full_name|default:user.username %}
+                <a href="{% url 'tickets:perfil' user.username %}" class="app-topbar-usuario" title="{{ nome }}">
+                    <span class="avatar-circle" style="background-color: {{ nome|cor_avatar }};">{{ nome|iniciais }}</span>
+                    <span class="app-topbar-usuario-nome">{{ nome }}</span>
+                </a>
+                {% endwith %}
+                <form method="post" action="{% url 'logout' %}" class="mb-0">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Sair</button>
+                </form>
+            {% endif %}
+        </div>
+    </header>
+
     <div class="app-shell">
         {% block sidebar %}
         <div class="mobile-topbar">
@@ -23,25 +69,22 @@
                     <path d="M3 6h18M3 12h18M3 18h18"/>
                 </svg>
             </button>
-            <a href="{% url 'tickets:abrir_ticket' %}" class="mobile-topbar-brand">
-                <img src="{% static 'tickets/img/logo-icon.png' %}" alt="" class="brand-icon">
-                <span>Hospital Central São Lucas</span>
-            </a>
         </div>
         <div class="mobile-backdrop" id="mobileMenuBackdrop"></div>
 
         <aside class="sidebar" id="sidebarPrincipal">
             <div class="sidebar-top">
-                <div class="sidebar-brand">
-                    <a href="{% url 'tickets:abrir_ticket' %}">
-                        <img src="{% static 'tickets/img/logo-icon.png' %}" alt="Hospital Central São Lucas" class="brand-icon">
-                        <span class="brand-text">Hospital Central<br>São Lucas</span>
-                    </a>
-                </div>
                 <button type="button" id="toggleSidebar" class="btn btn-sm" aria-label="Recolher menu" title="Recolher menu">☰</button>
             </div>
 
             <nav class="sidebar-nav">
+                <a href="{% url 'tickets:portal' %}" class="{% if request.resolver_match.url_name == 'portal' %}active{% endif %}">
+                    <span class="nav-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                            <path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1Z"/>
+                        </svg>
+                    </span><span class="link-text">Início</span>
+                </a>
                 <div class="sidebar-nav-group-label">Atendimento</div>
                 <a href="{% url 'tickets:abrir_ticket' %}" class="{% if request.resolver_match.url_name == 'abrir_ticket' %}active{% endif %}">
                     <span class="nav-icon" aria-hidden="true">
@@ -141,38 +184,6 @@
                     {% endif %}
                 {% endif %}
             </nav>
-
-            <div class="sidebar-user">
-                <button type="button" id="themeToggleBtn" class="theme-toggle-btn" aria-label="Alternar tema claro/escuro" title="Alternar tema claro/escuro">
-                    <svg id="iconeSol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18" class="d-none">
-                        <circle cx="12" cy="12" r="5"/>
-                        <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-                    </svg>
-                    <svg id="iconeLua" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18" class="d-none">
-                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/>
-                    </svg>
-                </button>
-                {% if user.is_authenticated %}
-                    {% with nome=user.get_full_name|default:user.username %}
-                    <div class="sidebar-profile-row">
-                        <a href="{% url 'tickets:perfil' user.username %}" class="sidebar-profile-link" title="{{ nome }}">
-                            <span class="avatar-circle" style="background-color: {{ nome|cor_avatar }};">{{ nome|iniciais }}</span>
-                            <span class="user-text">{{ nome }}</span>
-                        </a>
-                        <form method="post" action="{% url 'logout' %}" class="mb-0">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Sair">
-                                <span class="user-text">Sair</span><span class="collapsed-only">⎋</span>
-                            </button>
-                        </form>
-                    </div>
-                    {% endwith %}
-                {% else %}
-                    <a href="{% url 'login' %}" title="Entrar">
-                        <span class="user-text">Entrar</span><span class="collapsed-only">➜</span>
-                    </a>
-                {% endif %}
-            </div>
         </aside>
         {% endblock %}
 

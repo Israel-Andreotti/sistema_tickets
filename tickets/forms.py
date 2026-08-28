@@ -1,6 +1,7 @@
 import bleach
 from bleach.css_sanitizer import CSSSanitizer
 from django import forms
+from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm
 from django.utils.html import strip_tags
 
@@ -236,6 +237,18 @@ class TrocarSenhaForm(PasswordChangeForm):
         super().__init__(*args, **kwargs)
         for campo in self.fields.values():
             campo.widget.attrs.update({"class": "form-control"})
+
+
+class EditarPerfilForm(forms.ModelForm):
+    class Meta:
+        model = get_user_model()
+        fields = ["email"]
+        widgets = {
+            "email": forms.EmailInput(attrs={"class": "form-control"}),
+        }
+        labels = {
+            "email": "E-mail institucional",
+        }
 
 
 class ArtigoForm(forms.ModelForm):

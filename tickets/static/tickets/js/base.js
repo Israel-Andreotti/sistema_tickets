@@ -1,3 +1,14 @@
+// Ao voltar pela navegação do navegador, o Chrome/Firefox pode restaurar um
+// retrato congelado da página (bfcache) em vez de buscar o estado atual do
+// servidor — depois de marcar uma notificação como lida (ou qualquer outra
+// ação que muda o servidor) isso faz a página "voltar" parecendo desfeita.
+// Forçamos um reload nesse caso pra sempre refletir o estado real.
+window.addEventListener('pageshow', function (event) {
+    if (event.persisted) {
+        window.location.reload();
+    }
+});
+
 document.addEventListener('DOMContentLoaded', function () {
     // A tela de login não tem sidebar — nenhum destes elementos existe nela,
     // já que base.js é compartilhado por todas as páginas.
@@ -55,33 +66,30 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Campos de data em dd/mm/aaaa forçado: o <input type="date"> nativo
-    // mostra o formato do sistema operacional de quem usa (nem sempre
-    // dd/mm/aaaa, mesmo com lang="pt-BR"), então usamos texto com
-    // máscara e só convertemos pra ISO (yyyy-mm-dd) ao enviar o form.
-    document.querySelectorAll('input[data-date-mask]').forEach(function (campo) {
-        if (campo.value && /^\d{4}-\d{2}-\d{2}$/.test(campo.value)) {
-            var partesIso = campo.value.split('-');
-            campo.value = partesIso[2] + '/' + partesIso[1] + '/' + partesIso[0];
-        }
-
-        campo.addEventListener('input', function () {
-            var digitos = campo.value.replace(/\D/g, '').slice(0, 8);
-            var formatado = digitos;
-            if (digitos.length > 4) {
-                formatado = digitos.slice(0, 2) + '/' + digitos.slice(2, 4) + '/' + digitos.slice(4);
-            } else if (digitos.length > 2) {
-                formatado = digitos.slice(0, 2) + '/' + digitos.slice(2);
-            }
-            campo.value = formatado;
+    // A tela de login não tem sino de notificações — por isso o guard.
+    var notificacaoWrapper = document.getElementById('notificacaoDropdownWrapper');
+    var notificacaoBtn = document.getElementById('notificacaoBtn');
+    var notificacaoMenu = document.getElementById('notificacaoMenu');
+    var notificacaoBadge = document.getElementById('notificacaoBadge');
+    if (notificacaoWrapper && notificacaoBtn && notificacaoMenu && notificacaoBadge) {
+        notificacaoWrapper.addEventListener('show.bs.dropdown', function () {
+            fetch(notificacaoBtn.dataset.urlDropdown)
+                .then(function (resp) { return resp.text(); })
+                .then(function (html) { notificacaoMenu.innerHTML = html; });
         });
 
-        var formularioDoCampo = campo.closest('form');
-        if (formularioDoCampo) {
-            formularioDoCampo.addEventListener('submit', function () {
-                var partesBr = campo.value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-                campo.value = partesBr ? (partesBr[3] + '-' + partesBr[2] + '-' + partesBr[1]) : '';
-            });
-        }
-    });
+        var atualizarBadgeNotificacoes = function () {
+            fetch(notificacaoBtn.dataset.urlNovas)
+                .then(function (resp) { return resp.json(); })
+                .then(function (dados) {
+                    if (dados.total_nao_lidas > 0) {
+                        notificacaoBadge.textContent = dados.total_nao_lidas;
+                        notificacaoBadge.classList.remove('d-none');
+                    } else {
+                        notificacaoBadge.classList.add('d-none');
+                    }
+                });
+        };
+        setInterval(atualizarBadgeNotificacoes, 20000);
+    }
 });

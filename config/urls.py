@@ -27,7 +27,7 @@ urlpatterns = [
     path('accounts/login/', auth_views.LoginView.as_view(authentication_form=LoginForm), name='login'),
     path('accounts/logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('tickets/', include('tickets.urls')),
-    path('', RedirectView.as_view(pattern_name='tickets:abrir_ticket', permanent=False)),
+    path('', RedirectView.as_view(pattern_name='tickets:portal', permanent=False)),
 ]
 
 if settings.DEBUG:

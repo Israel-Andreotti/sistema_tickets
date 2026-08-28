@@ -230,6 +230,34 @@ class ComentarioTicket(models.Model):
         return f"Comentário de {self.autor} em #{self.ticket_id}"
 
 
+class Notificacao(models.Model):
+    """Aviso in-app pro solicitante: mudança de status do chamado ou resposta/
+    desfecho do técnico. Fica guardada mesmo depois de lida — só o campo
+    `lida` muda, pra manter o histórico completo disponível pro usuário."""
+
+    class Tipo(models.TextChoices):
+        MUDANCA_STATUS = "mudanca_status", "Mudança de status"
+        NOVO_COMENTARIO = "novo_comentario", "Novo comentário"
+
+    destinatario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notificacoes"
+    )
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="notificacoes")
+    tipo = models.CharField(max_length=20, choices=Tipo.choices)
+    mensagem = models.CharField(max_length=255)
+    lida = models.BooleanField(default=False)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    lida_em = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Notificação"
+        verbose_name_plural = "Notificações"
+        ordering = ["-criado_em"]
+
+    def __str__(self):
+        return f"Notificação para {self.destinatario} — chamado #{self.ticket_id}"
+
+
 class MovimentacaoEquipamento(models.Model):
     """Histórico de cada movimentação de equipamento registrada num ticket —
     inclusive quando o técnico confirma que não houve nenhuma (RN27)."""

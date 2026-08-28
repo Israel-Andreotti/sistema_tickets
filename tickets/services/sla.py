@@ -13,8 +13,9 @@ como desnecessária) — e é o momento em que qualquer movimentação pendente
 from django.db import transaction
 from django.utils import timezone
 
-from ..models import HistoricoSLA, Ticket
+from ..models import HistoricoSLA, Notificacao, Ticket
 from .equipamento import aplicar_movimentacoes_pendentes
+from .notificacoes import notificar
 
 
 def fechar_ticket(ticket: Ticket, *, data_fechamento=None) -> HistoricoSLA:
@@ -50,5 +51,9 @@ def fechar_ticket(ticket: Ticket, *, data_fechamento=None) -> HistoricoSLA:
                 "tempo_esperado": round(tempo_esperado, 2),
                 "desvio": round(desvio, 2),
             },
+        )
+        notificar(
+            ticket, Notificacao.Tipo.MUDANCA_STATUS,
+            f"Seu chamado #{ticket.pk} foi fechado.",
         )
     return historico

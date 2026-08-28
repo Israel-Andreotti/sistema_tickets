@@ -8,6 +8,7 @@ from .models import (
     HistoricoSLA,
     ItemConfiguracao,
     MovimentacaoEquipamento,
+    Notificacao,
     ParametroSistema,
     Recomendacao,
     RegraRecomendacao,
@@ -98,6 +99,15 @@ class TicketAdmin(admin.ModelAdmin):
         "tecnico_responsavel",
     )
     readonly_fields = ("prioridade_calculada", "data_abertura", "solicitante_ip")
+
+
+@admin.register(Notificacao)
+class NotificacaoAdmin(admin.ModelAdmin):
+    list_display = ("destinatario", "ticket", "tipo", "mensagem", "lida", "criado_em")
+    list_filter = ("tipo", "lida")
+    search_fields = ("mensagem", "destinatario__username")
+    autocomplete_fields = ("destinatario", "ticket")
+    readonly_fields = ("criado_em", "lida_em")
 
 
 @admin.register(HistoricoSLA)

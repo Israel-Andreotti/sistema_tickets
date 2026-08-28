@@ -1,4 +1,4 @@
-from .models import Setor
+from .models import Notificacao, Setor
 
 
 def papel_usuario(request):
@@ -14,4 +14,13 @@ def papel_usuario(request):
     # continua exclusivo a superusuários.
     pode_ver_slas = user.is_authenticated and (user.is_staff or user.is_superuser or eh_gestor)
 
-    return {"eh_gestor": eh_gestor, "pode_ver_slas": pode_ver_slas}
+    notificacoes_nao_lidas = (
+        Notificacao.objects.filter(destinatario=user, lida=False).count()
+        if user.is_authenticated else 0
+    )
+
+    return {
+        "eh_gestor": eh_gestor,
+        "pode_ver_slas": pode_ver_slas,
+        "notificacoes_nao_lidas": notificacoes_nao_lidas,
+    }

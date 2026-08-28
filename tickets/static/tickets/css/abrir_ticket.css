@@ -1,5 +1,5 @@
 .app-main > main {
-    min-height: calc(100vh - 4rem);
+    min-height: calc(100vh - var(--altura-topbar) - 4rem);
     display: flex;
     flex-direction: column;
     justify-content: center;

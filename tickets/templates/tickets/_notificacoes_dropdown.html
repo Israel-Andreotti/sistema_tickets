@@ -1,0 +1,17 @@
+{% if notificacoes %}
+    {% for notificacao in notificacoes %}
+    <form method="post" action="{% url 'tickets:marcar_notificacao_lida' notificacao.pk %}" class="notificacao-form">
+        {% csrf_token %}
+        <button type="submit" class="notificacao-item {% if not notificacao.lida %}nao-lida{% endif %}">
+            <span class="notificacao-status" aria-hidden="true"></span>
+            <span class="notificacao-corpo">
+                <span class="notificacao-mensagem">{{ notificacao.mensagem }}</span>
+                <span class="notificacao-data">{{ notificacao.criado_em|date:"d/m/Y H:i" }}</span>
+            </span>
+        </button>
+    </form>
+    {% endfor %}
+    <a href="{% url 'tickets:notificacoes' %}" class="notificacao-ver-todas">Ver todas as notificações</a>
+{% else %}
+    <p class="notificacao-vazio">Nenhuma notificação por aqui.</p>
+{% endif %}

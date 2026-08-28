@@ -5,10 +5,20 @@ from . import views
 app_name = "tickets"
 
 urlpatterns = [
+    path("", views.portal_view, name="portal"),
     path("abrir/", views.abrir_ticket_view, name="abrir_ticket"),
     path("perfil/<str:username>/", views.perfil_view, name="perfil"),
     path("meus/", views.meus_tickets_view, name="meus_tickets"),
     path("meus/<int:pk>/", views.meu_ticket_detalhe_view, name="meu_ticket_detalhe"),
+    path("notificacoes/", views.notificacoes_view, name="notificacoes"),
+    path("notificacoes/dropdown/", views.notificacoes_dropdown_view, name="notificacoes_dropdown"),
+    path("notificacoes/novas/", views.notificacoes_novas_view, name="notificacoes_novas"),
+    path("notificacoes/<int:pk>/lida/", views.marcar_notificacao_lida_view, name="marcar_notificacao_lida"),
+    path(
+        "notificacoes/marcar-todas/",
+        views.marcar_todas_notificacoes_lidas_view,
+        name="marcar_todas_notificacoes_lidas",
+    ),
     path("tecnico/", views.fila_tickets_view, name="fila_tickets"),
     path("tecnico/dashboard/", views.dashboard_view, name="dashboard"),
     path("tecnico/novos/", views.fila_tickets_novos_view, name="fila_tickets_novos"),
