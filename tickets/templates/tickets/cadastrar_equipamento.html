@@ -1,4 +1,5 @@
 {% extends "tickets/base.html" %}
+{% load static %}
 
 {% block title %}Novo equipamento — Chamados de TI{% endblock %}
 
@@ -20,4 +21,8 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'tickets/js/equipamento_form.js' %}" defer></script>
 {% endblock %}

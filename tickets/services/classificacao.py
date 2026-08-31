@@ -6,9 +6,14 @@ RN02 — a IA analisa a descrição e determina sua própria categoria (categori
 RN03 — o técnico vê as duas lado a lado e confirma/corrige a classificação final.
 RN04 — apenas categoria_final alimenta cálculo de SLA e prioridade.
 """
-from ..models import Categoria, ItemConfiguracao, Notificacao, Setor, Ticket
-from .notificacoes import notificar
+from ..models import Categoria, EscalonamentoTicket, ItemConfiguracao, Notificacao, Setor, Ticket
+from .codigo import proximo_numero_sequencial
+from .notificacoes import notificar, notificar_tecnicos_nivel
 from .prioridade import calcular_prioridade
+
+_ORDEM_NIVEL = [
+    Categoria.NivelAtendimento.N1, Categoria.NivelAtendimento.N2, Categoria.NivelAtendimento.N3,
+]
 
 
 def abrir_ticket(
@@ -24,9 +29,16 @@ def abrir_ticket(
     solicitante_ip: str | None = None,
     impacto: str = Ticket.Impacto.APENAS_EU,
 ) -> Ticket:
-    """RN01: registra a categoria escolhida pelo solicitante e seus dados de contato."""
+    """RN01: registra a categoria escolhida pelo solicitante e seus dados de contato.
+
+    O código do chamado (INC/REQ + número sequencial) é definido aqui, a
+    partir do tipo de categoria_sugerida, e nunca recalculado depois.
+    """
     return Ticket.objects.create(
         categoria_sugerida=categoria_sugerida,
+        codigo_tipo=categoria_sugerida.tipo,
+        codigo_numero=proximo_numero_sequencial(categoria_sugerida.tipo),
+        nivel_atual=categoria_sugerida.nivel_atendimento,
         setor=setor,
         descricao=descricao,
         solicitante=solicitante,
@@ -59,9 +71,42 @@ def atribuir_tecnico(ticket: Ticket, tecnico) -> Ticket:
     if vai_iniciar_atendimento:
         notificar(
             ticket, Notificacao.Tipo.MUDANCA_STATUS,
-            f"Seu chamado #{ticket.pk} entrou em atendimento.",
+            f"Seu chamado {ticket.codigo} entrou em atendimento.",
         )
     return ticket
+
+
+def niveis_acima(nivel_atual: str) -> list[str]:
+    """Níveis de atendimento acima do atual — usado pra montar as opções
+    de escalonamento disponíveis (nunca é possível rebaixar nível)."""
+    return _ORDEM_NIVEL[_ORDEM_NIVEL.index(nivel_atual) + 1:]
+
+
+def escalar_ticket(ticket: Ticket, *, autor, novo_nivel: str, justificativa: str = "") -> EscalonamentoTicket:
+    """Escala o chamado pra um nível de atendimento acima do atual (N1→N2,
+    N1→N3, N2→N3) — nunca pra baixo. Grava um EscalonamentoTicket com o
+    histórico completo e avisa o solicitante da mudança."""
+    if _ORDEM_NIVEL.index(novo_nivel) <= _ORDEM_NIVEL.index(ticket.nivel_atual):
+        raise ValueError("Só é possível escalar para um nível de atendimento acima do atual.")
+
+    nivel_anterior = ticket.nivel_atual
+    ticket.nivel_atual = novo_nivel
+    ticket.save(update_fields=["nivel_atual"])
+
+    notificar(
+        ticket, Notificacao.Tipo.MUDANCA_STATUS,
+        f"Seu chamado {ticket.codigo} foi escalado para nível {novo_nivel.upper()}.",
+    )
+    notificar_tecnicos_nivel(
+        ticket, novo_nivel,
+        f"O chamado {ticket.codigo} foi escalado para o seu nível de atendimento ({novo_nivel.upper()}).",
+        excluir=autor,
+    )
+
+    return EscalonamentoTicket.objects.create(
+        ticket=ticket, autor=autor, nivel_anterior=nivel_anterior,
+        nivel_novo=novo_nivel, justificativa=justificativa,
+    )
 
 
 def confirmar_classificacao_final(ticket: Ticket, categoria_final: Categoria) -> Ticket:
@@ -79,6 +124,6 @@ def confirmar_classificacao_final(ticket: Ticket, categoria_final: Categoria) ->
     if vai_iniciar_atendimento:
         notificar(
             ticket, Notificacao.Tipo.MUDANCA_STATUS,
-            f"Seu chamado #{ticket.pk} entrou em atendimento.",
+            f"Seu chamado {ticket.codigo} entrou em atendimento.",
         )
     return ticket

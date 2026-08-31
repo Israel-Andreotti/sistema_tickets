@@ -1,4 +1,9 @@
 :root {
+    /* Sem isso, o navegador renderiza o popup nativo do <select> (e outros
+       controles nativos) conforme a preferência do sistema operacional, não
+       conforme o tema ativo do app — dava pra ficar claro no app e escuro no
+       popup do select (ou vice-versa) quando os dois divergiam. */
+    color-scheme: light;
     --bs-primary: #0e6e68;
     --bs-primary-rgb: 14, 110, 104;
     --bs-link-color: #0e6e68;
@@ -19,6 +24,7 @@
     --altura-topbar: 4rem;
 }
 [data-bs-theme="dark"] {
+    color-scheme: dark;
     --bs-primary: #4fc1b8;
     --bs-primary-rgb: 79, 193, 184;
     --bs-link-color: #4fc1b8;
@@ -409,6 +415,59 @@ h1, h2, h3 { color: var(--brand); }
 .notificacao-lista-item.nao-lida { border-left: 3px solid var(--bs-primary); }
 
 .app-main { flex: 1; min-width: 0; max-width: 100%; }
+
+/* ---- select customizado (tickets/js/select-customizado.js) ---- */
+/* Painel flutuante que substitui a lista de opções nativa do <select> —
+   sem isso ele fica sem elevação visual (mesma cor do que está atrás),
+   se misturando com o campo seguinte quando aberto por cima dele. Evita
+   deliberadamente as classes .dropdown-menu/.dropdown-item do Bootstrap:
+   o bootstrap.bundle.min.js tem um handler global de teclado que trata
+   qualquer elemento com essas classes como um Dropdown dele, mesmo sem
+   data-bs-toggle, e quebra ao navegar com as setas. */
+.menu-flutuante {
+    background-color: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 0.5rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.3);
+    padding: 0.35rem;
+    margin-top: 0.25rem;
+    max-height: 280px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+.menu-flutuante-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: none;
+    border-radius: 0.375rem;
+    background: transparent;
+    color: var(--bs-body-color);
+    padding: 0.55rem 0.75rem;
+    font-size: 0.95rem;
+    flex-shrink: 0;
+}
+.menu-flutuante-item:hover,
+.menu-flutuante-item:focus {
+    background: var(--brand-soft);
+    color: var(--brand);
+    outline: none;
+}
+.menu-flutuante-item.ativo {
+    background: var(--brand-soft);
+    color: var(--brand);
+    font-weight: 600;
+}
+.menu-flutuante-grupo {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--label-muted);
+    padding: 0.5rem 0.75rem 0.2rem;
+    flex-shrink: 0;
+}
 
 /* ---- sidebar recolhida ---- */
 html[data-sidebar-collapsed="true"] .sidebar { width: 68px; }

@@ -33,6 +33,23 @@
             </select>
         </div>
         <div class="col-md-2">
+            <label for="tipo" class="form-label small mb-1">Tipo</label>
+            <select name="tipo" id="tipo" class="form-select form-select-sm">
+                <option value="">Todos</option>
+                <option value="incidente" {% if tipo_selecionado == "incidente" %}selected{% endif %}>Incidente</option>
+                <option value="requisicao" {% if tipo_selecionado == "requisicao" %}selected{% endif %}>Requisição</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label for="nivel" class="form-label small mb-1">Nível</label>
+            <select name="nivel" id="nivel" class="form-select form-select-sm">
+                <option value="">Todos</option>
+                <option value="n1" {% if nivel_selecionado == "n1" %}selected{% endif %}>N1</option>
+                <option value="n2" {% if nivel_selecionado == "n2" %}selected{% endif %}>N2</option>
+                <option value="n3" {% if nivel_selecionado == "n3" %}selected{% endif %}>N3</option>
+            </select>
+        </div>
+        <div class="col-md-2">
             <label for="data_de" class="form-label small mb-1">Fechado de</label>
             <input type="date" name="data_de" id="data_de" class="form-control form-control-sm" value="{{ data_de }}">
         </div>
@@ -59,6 +76,8 @@
                 <th>Solicitante</th>
                 <th>Setor</th>
                 <th>Categoria final</th>
+                <th>Tipo</th>
+                <th>Nível</th>
                 <th>Prioridade</th>
                 <th>Aberto em</th>
                 <th>Fechado em</th>
@@ -68,10 +87,22 @@
         <tbody>
             {% for ticket in pagina %}
             <tr onclick="window.location='{% url 'tickets:detalhe_ticket' ticket.pk %}'" style="cursor: pointer;">
-                <td>{{ ticket.pk }}</td>
+                <td>{{ ticket.codigo }}</td>
                 <td>{{ ticket.solicitante_nome }}</td>
                 <td>{{ ticket.setor }}</td>
                 <td>{{ ticket.categoria_final|default:"—" }}</td>
+                <td>
+                    {% if ticket.tipo_calculado == 'incidente' %}
+                        <span class="badge bg-danger">Incidente</span>
+                    {% elif ticket.tipo_calculado == 'requisicao' %}
+                        <span class="badge bg-primary">Requisição</span>
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td>
+                    <span class="badge bg-secondary">{{ ticket.get_nivel_atual_display }}</span>
+                </td>
                 <td>{{ ticket.prioridade_calculada|default:"—" }}</td>
                 <td>{{ ticket.data_abertura|date:"d/m/Y H:i" }}</td>
                 <td>{{ ticket.data_fechamento|date:"d/m/Y H:i" }}</td>
@@ -87,7 +118,7 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="8" class="text-center text-muted py-4">Nenhum chamado fechado encontrado com esses filtros.</td>
+                <td colspan="10" class="text-center text-muted py-4">Nenhum chamado fechado encontrado com esses filtros.</td>
             </tr>
             {% endfor %}
         </tbody>

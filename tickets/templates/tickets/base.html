@@ -158,6 +158,14 @@
                             </svg>
                         </span><span class="link-text">Equipamentos</span>
                     </a>
+                    <a href="{% url 'tickets:listar_respostas_rapidas' %}" class="{% if request.resolver_match.url_name == 'listar_respostas_rapidas' %}active{% endif %}">
+                        <span class="nav-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                <path d="M7 9h10M7 13h6"/>
+                            </svg>
+                        </span><span class="link-text">Modelos de resposta</span>
+                    </a>
                 {% endif %}
 
                 {% if pode_ver_slas or user.is_superuser %}
@@ -208,6 +216,7 @@
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
         crossorigin="anonymous"></script>
     <script src="{% static 'tickets/js/base.js' %}"></script>
+    <script src="{% static 'tickets/js/select-customizado.js' %}"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

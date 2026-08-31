@@ -1,0 +1,61 @@
+{% extends "tickets/base.html" %}
+
+{% block title %}{% if modo == "editar" %}Editar modelo{% else %}Novo modelo{% endif %} — Modelos de resposta{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        {% if modo == "editar" %}
+            <a href="{% url 'tickets:listar_respostas_rapidas' %}" class="link-secondary small">&larr; Voltar para modelos de resposta</a>
+        {% else %}
+            <a href="{% url 'tickets:listar_respostas_rapidas' %}" class="link-secondary small">&larr; Voltar para modelos de resposta</a>
+        {% endif %}
+
+        <div class="card shadow-sm mt-2">
+            <div class="card-body">
+                <h1 class="h4 card-title mb-3">{% if modo == "editar" %}Editar modelo{% else %}Novo modelo{% endif %}</h1>
+
+                <form method="post" novalidate>
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label for="{{ form.titulo.id_for_label }}" class="form-label">{{ form.titulo.label }} <span class="text-danger">*</span></label>
+                        {{ form.titulo }}
+                        {% for error in form.titulo.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.grupo.id_for_label }}" class="form-label">{{ form.grupo.label }}</label>
+                        {{ form.grupo }}
+                        {% for error in form.grupo.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.tipo_padrao.id_for_label }}" class="form-label">{{ form.tipo_padrao.label }}</label>
+                        {{ form.tipo_padrao }}
+                        <div class="form-text">{{ form.tipo_padrao.help_text }}</div>
+                        {% for error in form.tipo_padrao.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.texto.id_for_label }}" class="form-label">{{ form.texto.label }} <span class="text-danger">*</span></label>
+                        {{ form.texto }}
+                        <div class="form-text">{{ form.texto.help_text }}</div>
+                        {% for error in form.texto.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">{% if modo == "editar" %}Salvar alterações{% else %}Criar modelo{% endif %}</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

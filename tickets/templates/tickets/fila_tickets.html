@@ -8,8 +8,20 @@
 {% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-1">
+<div class="d-flex justify-content-between align-items-center mb-1 flex-wrap gap-2">
     <h1 class="h4 mb-0">Fila de chamados</h1>
+    <div class="d-flex align-items-center gap-2">
+        <div class="btn-group" role="group" aria-label="Alternar entre todos os chamados e os meus">
+            <a href="?{{ querystring_todos }}" class="btn btn-sm {% if not atribuidos_a_mim %}btn-primary{% else %}btn-outline-primary{% endif %}">Todos</a>
+            <a href="?{{ querystring_meus }}" class="btn btn-sm {% if atribuidos_a_mim %}btn-primary{% else %}btn-outline-primary{% endif %}">Meus chamados</a>
+        </div>
+        <button
+            type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse"
+            data-bs-target="#filtrosFila" aria-expanded="{% if algum_filtro %}true{% else %}false{% endif %}"
+            aria-controls="filtrosFila">
+            Filtros{% if algum_filtro %} (ativos){% endif %}
+        </button>
+    </div>
 </div>
 <p class="subtitulo-institucional mb-3">Central de Serviços de Tecnologia da Informação — HCSL</p>
 
@@ -41,7 +53,9 @@
     </div>
 </div>
 
+<div class="collapse{% if algum_filtro %} show{% endif %}" id="filtrosFila">
 <form method="get" class="card card-body mb-4">
+    {% if atribuidos_a_mim %}<input type="hidden" name="atribuidos_a_mim" value="on">{% endif %}
     <div class="row g-2 align-items-end">
         <div class="col-md-2">
             <label for="busca" class="form-label small mb-1">Solicitante ou descrição</label>
@@ -67,6 +81,23 @@
             </select>
         </div>
         <div class="col-md-2">
+            <label for="tipo" class="form-label small mb-1">Tipo</label>
+            <select name="tipo" id="tipo" class="form-select form-select-sm">
+                <option value="">Todos</option>
+                <option value="incidente" {% if tipo_selecionado == "incidente" %}selected{% endif %}>Incidente</option>
+                <option value="requisicao" {% if tipo_selecionado == "requisicao" %}selected{% endif %}>Requisição</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label for="nivel" class="form-label small mb-1">Nível</label>
+            <select name="nivel" id="nivel" class="form-select form-select-sm">
+                <option value="">Todos</option>
+                <option value="n1" {% if nivel_selecionado == "n1" %}selected{% endif %}>N1</option>
+                <option value="n2" {% if nivel_selecionado == "n2" %}selected{% endif %}>N2</option>
+                <option value="n3" {% if nivel_selecionado == "n3" %}selected{% endif %}>N3</option>
+            </select>
+        </div>
+        <div class="col-md-2">
             <label for="data_de" class="form-label small mb-1">Aberto de</label>
             <input type="date" name="data_de" id="data_de" class="form-control form-control-sm" value="{{ data_de }}">
         </div>
@@ -82,6 +113,7 @@
         </div>
     </div>
 </form>
+</div>
 
 <div class="table-responsive">
     <table class="table table-hover align-middle ticket-table">
@@ -92,6 +124,8 @@
                 <th>Setor</th>
                 <th>Categoria (usuário)</th>
                 <th>Categoria (IA)</th>
+                <th>Tipo</th>
+                <th>Nível</th>
                 <th>Prioridade</th>
                 <th>Status</th>
                 <th>Responsável</th>
@@ -102,7 +136,7 @@
         <tbody>
             {% for ticket in tickets %}
             <tr onclick="window.location='{% url 'tickets:detalhe_ticket' ticket.pk %}'" style="cursor: pointer;">
-                <td>{{ ticket.pk }}</td>
+                <td>{{ ticket.codigo }}</td>
                 <td>
                     <div class="d-flex align-items-center gap-2">
                         <span class="avatar-circle" style="background-color: {{ ticket.solicitante_nome|cor_avatar }};">
@@ -114,6 +148,14 @@
                 <td>{{ ticket.setor }}</td>
                 <td>{{ ticket.categoria_sugerida }}</td>
                 <td>{{ ticket.categoria_ia|default:"—" }}</td>
+                <td>
+                    <span class="badge {% if ticket.tipo_calculado == 'incidente' %}bg-danger{% else %}bg-primary{% endif %}">
+                        {% if ticket.tipo_calculado == 'incidente' %}Incidente{% else %}Requisição{% endif %}
+                    </span>
+                </td>
+                <td>
+                    <span class="badge bg-secondary">{{ ticket.get_nivel_atual_display }}</span>
+                </td>
                 <td>
                     <span class="badge {{ ticket.prioridade_calculada|prioridade_classe }}">
                         {{ ticket.prioridade_calculada|prioridade_label }}
@@ -144,7 +186,7 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="10" class="text-center text-muted py-4">
+                <td colspan="12" class="text-center text-muted py-4">
                     {% if algum_filtro %}Nenhum chamado encontrado com esses filtros.{% else %}Nenhum chamado em aberto.{% endif %}
                 </td>
             </tr>

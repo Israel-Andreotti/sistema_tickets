@@ -13,6 +13,8 @@ Não faz parte das RN01-17 originais — é a lógica por trás dos campos de
 Cada chamada (inclusive as confirmações de "sem movimentação") grava um
 MovimentacaoEquipamento, formando o histórico exibido na tela do ticket.
 """
+from django.utils import timezone
+
 from ..models import ItemConfiguracao, MovimentacaoEquipamento, Setor, Ticket
 from .parametros import get_parametro
 
@@ -31,6 +33,25 @@ def equipamento_elegivel_para_entrada(equipamento: ItemConfiguracao) -> bool:
 
 def equipamento_elegivel_para_saida(equipamento: ItemConfiguracao, ticket: Ticket) -> bool:
     return equipamento.setor_id == ticket.setor_id
+
+
+def liberar_resguardos_vencidos() -> int:
+    """Promove pra 'resguardo_liberado' todo equipamento em 'em_resguardo'
+    cujo prazo já venceu. Chamada sob demanda (o projeto não tem cron/Celery)
+    a partir da tela de equipamentos — ver listar_equipamentos_view."""
+    hoje = timezone.now().date()
+    vencidos = [
+        item.pk for item in ItemConfiguracao.objects.filter(
+            status=ItemConfiguracao.Status.EM_RESGUARDO,
+            data_inicio_resguardo__isnull=False,
+        )
+        if item.data_fim_resguardo and item.data_fim_resguardo <= hoje
+    ]
+    if vencidos:
+        ItemConfiguracao.objects.filter(pk__in=vencidos).update(
+            status=ItemConfiguracao.Status.RESGUARDO_LIBERADO
+        )
+    return len(vencidos)
 
 
 def movimentar_equipamento(
@@ -72,6 +93,22 @@ def registrar_sem_movimentacao(ticket: Ticket, *, autor) -> MovimentacaoEquipame
     return MovimentacaoEquipamento.objects.create(
         ticket=ticket, autor=autor, sem_movimentacao=True, aplicada=True
     )
+
+
+def remover_movimentacao_pendente(movimentacao: MovimentacaoEquipamento) -> None:
+    """Remove um registro de movimentação ainda pendente (aplicada=False) —
+    ex: o técnico vinculou o equipamento errado por engano. Só é permitido
+    antes do chamado fechar, porque aplicar_movimentacoes_pendentes() é o
+    que efetiva a mudança no CMDB; depois disso não tem "desfazer" seguro
+    por aqui, precisaria de uma movimentação nova revertendo a anterior."""
+    if movimentacao.aplicada:
+        raise ValueError(
+            "Essa movimentação já foi aplicada ao CMDB e não pode ser removida."
+        )
+    ticket = movimentacao.ticket
+    movimentacao.delete()
+    ticket.movimentacao_confirmada = ticket.movimentacoes_equipamento.exists()
+    ticket.save(update_fields=["movimentacao_confirmada"])
 
 
 def aplicar_movimentacoes_pendentes(ticket: Ticket) -> None:

@@ -93,7 +93,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function destacarSugestaoAtiva() {
         Array.prototype.forEach.call(setorSugestoes.children, function (el, indice) {
-            el.classList.toggle('active', indice === indiceAtivo);
+            el.classList.toggle('ativo', indice === indiceAtivo);
         });
     }
 
@@ -108,7 +108,7 @@ document.addEventListener('DOMContentLoaded', function () {
         lista.forEach(function (item) {
             var botao = document.createElement('button');
             botao.type = 'button';
-            botao.className = 'list-group-item list-group-item-action';
+            botao.className = 'menu-flutuante-item';
             botao.textContent = item.texto;
             botao.addEventListener('mousedown', function (evento) {
                 evento.preventDefault();

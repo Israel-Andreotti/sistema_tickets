@@ -1,7 +1,7 @@
 {% extends "tickets/base.html" %}
 {% load static ticket_extras %}
 
-{% block title %}Chamado #{{ ticket.pk }} — Chamados de TI{% endblock %}
+{% block title %}Chamado {{ ticket.codigo }} — Chamados de TI{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center" id="detalheTicket"
@@ -13,16 +13,30 @@
         <div class="card shadow-sm mt-2 mb-4">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start mb-3">
-                    <h1 class="h4 card-title mb-0">Chamado #{{ ticket.pk }}</h1>
-                    <span class="badge {% if ticket.status == 'aberto' %}bg-warning text-dark{% elif ticket.status == 'em_atendimento' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
-                        {{ ticket.get_status_display }}
-                    </span>
+                    <h1 class="h4 card-title mb-0">Chamado {{ ticket.codigo }}</h1>
+                    <div class="d-flex gap-2">
+                        <span class="badge {% if tipo_calculado == 'incidente' %}bg-danger{% else %}bg-primary{% endif %}">
+                            {% if tipo_calculado == 'incidente' %}Incidente{% else %}Requisição{% endif %}
+                        </span>
+                        <span class="badge bg-secondary">{{ ticket.get_nivel_atual_display }}</span>
+                        <span class="badge {% if ticket.status == 'aberto' %}bg-warning text-dark{% elif ticket.status == 'em_atendimento' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                            {{ ticket.get_status_display }}
+                        </span>
+                    </div>
                 </div>
 
                 <div class="kv-grid mb-4">
                     <div>
                         <div class="kv-label">Solicitante</div>
-                        <div class="kv-value">{{ ticket.solicitante_nome }} — ramal {{ ticket.solicitante_ramal }}, sala {{ ticket.solicitante_sala }}</div>
+                        <div class="kv-value">{{ ticket.solicitante_nome }}</div>
+                    </div>
+                    <div>
+                        <div class="kv-label">Ramal</div>
+                        <div class="kv-value">{{ ticket.solicitante_ramal }}</div>
+                    </div>
+                    <div>
+                        <div class="kv-label">Sala</div>
+                        <div class="kv-value">{{ ticket.solicitante_sala }}</div>
                     </div>
                     <div>
                         <div class="kv-label">IP de origem</div>
@@ -52,34 +66,103 @@
             <div class="card-body">
                 <h2 class="h6 mb-3">Atribuição do técnico</h2>
 
-                <div class="kv-label mb-1">Responsável atual</div>
-                <p class="kv-value mb-3">
-                    {% if ticket.tecnico_responsavel %}
-                        {{ ticket.tecnico_responsavel.get_full_name|default:ticket.tecnico_responsavel.username }}
-                    {% else %}
-                        <span class="text-muted">Nenhum técnico atribuído ainda</span>
-                    {% endif %}
-                </p>
-
-                <form method="post" action="{% url 'tickets:atribuir_tecnico' ticket.pk %}" novalidate>
-                    {% csrf_token %}
-                    <label for="tecnico_id" class="form-label">
-                        {% if ticket.tecnico_responsavel %}Reatribuir para{% else %}Atribuir para{% endif %}
-                    </label>
-                    <div class="input-group">
-                        <select name="tecnico_id" id="tecnico_id" class="form-select">
-                            <option value="">Selecione um técnico...</option>
-                            {% for tecnico in tecnicos %}
-                                <option value="{{ tecnico.pk }}" {% if ticket.tecnico_responsavel_id == tecnico.pk %}selected{% endif %}>
-                                    {{ tecnico.get_full_name|default:tecnico.username }}
-                                </option>
-                            {% endfor %}
-                        </select>
-                        <button type="submit" class="btn btn-primary">
-                            {% if ticket.tecnico_responsavel %}Reatribuir{% else %}Atribuir{% endif %}
-                        </button>
+                <div class="d-flex flex-wrap align-items-end justify-content-between gap-3">
+                    <div>
+                        <div class="kv-label mb-1">Responsável atual</div>
+                        <p class="kv-value mb-0">
+                            {% if ticket.tecnico_responsavel %}
+                                {{ ticket.tecnico_responsavel.get_full_name|default:ticket.tecnico_responsavel.username }}
+                            {% else %}
+                                <span class="text-muted">Nenhum técnico atribuído ainda</span>
+                            {% endif %}
+                        </p>
                     </div>
-                </form>
+
+                    <div class="d-flex flex-wrap align-items-end gap-2">
+                        {% if ticket.tecnico_responsavel_id != request.user.id %}
+                        <form method="post" action="{% url 'tickets:atribuir_tecnico' ticket.pk %}" class="mb-0">
+                            {% csrf_token %}
+                            <input type="hidden" name="tecnico_id" value="{{ request.user.pk }}">
+                            <button type="submit" class="btn btn-outline-primary btn-sm">Assumir chamado</button>
+                        </form>
+                        {% endif %}
+
+                        <form method="post" action="{% url 'tickets:atribuir_tecnico' ticket.pk %}" novalidate class="d-flex align-items-end gap-2 mb-0">
+                            {% csrf_token %}
+                            <div style="min-width: 280px;">
+                                <label for="tecnico_id" class="form-label small mb-1">
+                                    {% if ticket.tecnico_responsavel %}Reatribuir para{% else %}Atribuir para{% endif %}
+                                </label>
+                                <select name="tecnico_id" id="tecnico_id" class="form-select form-select-sm">
+                                    <option value="">Selecione um técnico...</option>
+                                    {% for tecnico in tecnicos %}
+                                        <option value="{{ tecnico.pk }}" {% if ticket.tecnico_responsavel_id == tecnico.pk %}selected{% endif %}>
+                                            {{ tecnico.get_full_name|default:tecnico.username }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                {% if ticket.tecnico_responsavel %}Reatribuir{% else %}Atribuir{% endif %}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Escalonamento -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <h2 class="h6 mb-3">Escalonamento</h2>
+
+                <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
+                    <div>
+                        <div class="kv-label mb-1">Nível atual</div>
+                        <p class="kv-value mb-0">{{ ticket.get_nivel_atual_display }}</p>
+                    </div>
+
+                    {% if niveis_disponiveis_escalonamento %}
+                    <form method="post" action="{% url 'tickets:escalar_ticket' ticket.pk %}" novalidate class="d-flex flex-wrap align-items-end gap-2 mb-0">
+                        {% csrf_token %}
+                        <div>
+                            <label for="novo_nivel" class="form-label small mb-1">Escalar para</label>
+                            <select name="novo_nivel" id="novo_nivel" class="form-select form-select-sm">
+                                {% for nivel in niveis_disponiveis_escalonamento %}
+                                    <option value="{{ nivel }}">{{ nivel|upper }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div style="min-width: 240px;">
+                            <label for="justificativa" class="form-label small mb-1">Justificativa (opcional)</label>
+                            <input type="text" name="justificativa" id="justificativa" class="form-control form-control-sm">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm">Escalar</button>
+                    </form>
+                    {% else %}
+                        <span class="text-muted small">Já está no nível máximo de atendimento.</span>
+                    {% endif %}
+                </div>
+
+                {% if escalonamentos %}
+                <div class="kv-label mb-1">Histórico de escalonamento</div>
+                <ul class="timeline">
+                    {% for escalonamento in escalonamentos %}
+                    <li class="timeline-item">
+                        <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
+                            <span class="badge bg-secondary">{{ escalonamento.nivel_anterior|upper }} → {{ escalonamento.nivel_novo|upper }}</span>
+                            <span class="small text-muted">
+                                {{ escalonamento.autor.get_full_name|default:escalonamento.autor.username|default:"usuário removido" }}
+                                — {{ escalonamento.criado_em|date:"d/m/Y H:i" }}
+                            </span>
+                        </div>
+                        {% if escalonamento.justificativa %}
+                            <div class="small">{{ escalonamento.justificativa }}</div>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
             </div>
         </div>
 
@@ -125,6 +208,13 @@
                 </p>
                 {% else %}
                 <p class="text-muted small">Nenhum equipamento vinculado a este chamado ainda.</p>
+                {% endif %}
+
+                {% if ticket.movimentacao_confirmada %}
+                <div class="text-success small mb-2">
+                    ✓ Movimentação de equipamento já confirmada pra este chamado — dá pra fechar o chamado
+                    normalmente. Use o formulário abaixo só se precisar registrar outra movimentação.
+                </div>
                 {% endif %}
 
                 {% if ticket.status != 'fechado' %}
@@ -178,11 +268,19 @@
                 <ul class="timeline">
                     {% for mov in movimentacoes %}
                     <li class="timeline-item">
-                        <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
-                            <span class="badge bg-{{ mov.badge_classe }}{% if mov.badge_classe == 'info' or mov.badge_classe == 'warning' %} text-dark{% endif %}">{{ mov.badge_label }}</span>
-                            <span class="small text-muted">
-                                {{ mov.autor.get_full_name|default:mov.autor.username }} — {{ mov.criado_em|date:"d/m/Y H:i" }}
-                            </span>
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+                            <div class="d-flex align-items-center flex-wrap gap-2">
+                                <span class="badge bg-{{ mov.badge_classe }}{% if mov.badge_classe == 'info' or mov.badge_classe == 'warning' %} text-dark{% endif %}">{{ mov.badge_label }}</span>
+                                <span class="small text-muted">
+                                    {{ mov.autor.get_full_name|default:mov.autor.username }} — {{ mov.criado_em|date:"d/m/Y H:i" }}
+                                </span>
+                            </div>
+                            {% if not mov.aplicada and ticket.status != 'fechado' %}
+                            <form method="post" action="{% url 'tickets:remover_movimentacao' ticket.pk mov.pk %}" class="mb-0">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2" title="Remover essa movimentação pendente">Remover</button>
+                            </form>
+                            {% endif %}
                         </div>
 
                         {% if mov.equipamento_saida %}
@@ -236,6 +334,20 @@
                 <p class="text-muted small">Nenhum comentário registrado ainda.</p>
                 {% endif %}
 
+                {% if respostas_rapidas %}
+                <div class="mb-3 position-relative">
+                    <label for="buscaRespostaRapida" class="form-label small mb-1">Modelos de resposta</label>
+                    <input
+                        type="text" id="buscaRespostaRapida" class="form-control form-control-sm"
+                        placeholder="Buscar um modelo de resposta..." autocomplete="off">
+                    <div
+                        id="sugestoesRespostaRapida" class="menu-flutuante d-none"
+                        style="position: absolute; z-index: 1050; width: 100%;">
+                    </div>
+                </div>
+                {{ respostas_rapidas|json_script:"dados-respostas-rapidas" }}
+                {% endif %}
+
                 <form method="post" action="{% url 'tickets:adicionar_comentario' ticket.pk %}" novalidate>
                     {% csrf_token %}
                     <div class="btn-group mb-2" role="group" aria-label="Tipo de comentário">
@@ -287,7 +399,7 @@
                                 {% csrf_token %}
                                 <input type="hidden" name="confirmar_sem_movimentacao" id="hiddenConfirmarSemMovimentacao" value="">
                                 <div class="modal-header">
-                                    <h5 class="modal-title" id="modalFecharChamadoLabel">Fechar chamado #{{ ticket.pk }}</h5>
+                                    <h5 class="modal-title" id="modalFecharChamadoLabel">Fechar chamado {{ ticket.codigo }}</h5>
                                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cancelar"></button>
                                 </div>
                                 <div class="modal-body">

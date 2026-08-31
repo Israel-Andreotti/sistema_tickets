@@ -44,36 +44,41 @@
     </div>
 </form>
 
-<div class="d-flex flex-column gap-3">
-    {% for artigo in artigos %}
-    <a href="{% url 'tickets:detalhe_artigo' artigo.pk %}" class="artigo-card card card-body text-decoration-none text-reset">
-        <div class="d-flex align-items-start gap-3">
-            <span class="artigo-icone" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
-                    <path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z"/>
-                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-                </svg>
-            </span>
-            <div class="flex-grow-1 artigo-corpo">
-                <div class="d-flex justify-content-between align-items-start gap-3">
-                    <div class="fw-semibold">{{ artigo.titulo|title }}</div>
-                    {% if artigo.categoria %}
-                        <span class="badge bg-secondary flex-shrink-0">{{ artigo.categoria.nome }}</span>
+{% if grupos %}
+    {% for grupo, artigos in grupos.items %}
+    <h2 class="h6 text-muted text-uppercase small mt-4 mb-2" style="letter-spacing: 0.05em;">{{ grupo }}</h2>
+    <div class="d-flex flex-column gap-3 mb-2">
+        {% for artigo in artigos %}
+        <a href="{% url 'tickets:detalhe_artigo' artigo.pk %}" class="artigo-card card card-body text-decoration-none text-reset">
+            <div class="d-flex align-items-start gap-3">
+                <span class="artigo-icone" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+                        <path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z"/>
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                    </svg>
+                </span>
+                <div class="flex-grow-1 artigo-corpo">
+                    <div class="d-flex justify-content-between align-items-start gap-3">
+                        <div class="fw-semibold">{{ artigo.titulo|title }}</div>
+                        {% if artigo.categoria %}
+                            <span class="badge bg-secondary flex-shrink-0">{{ artigo.categoria.nome }}</span>
+                        {% endif %}
+                    </div>
+                    {% if artigo.resumo %}
+                        <div class="small text-muted">{{ artigo.resumo }}</div>
                     {% endif %}
                 </div>
-                {% if artigo.resumo %}
-                    <div class="small text-muted">{{ artigo.resumo }}</div>
-                {% endif %}
             </div>
-        </div>
-        <div class="small text-muted mt-2">
-            Por {{ artigo.autor.get_full_name|default:artigo.autor.username }} — atualizado em {{ artigo.atualizado_em|date:"d/m/Y H:i" }}
-        </div>
-    </a>
-    {% empty %}
+            <div class="small text-muted mt-2">
+                Por {{ artigo.autor.get_full_name|default:artigo.autor.username }} — atualizado em {{ artigo.atualizado_em|date:"d/m/Y H:i" }}
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% endfor %}
+{% else %}
     <p class="text-muted small">
         {% if busca or categoria_selecionada %}Nenhum artigo encontrado.{% else %}Nenhum artigo publicado ainda.{% endif %}
     </p>
-    {% endfor %}
-</div>
+{% endif %}
 {% endblock %}

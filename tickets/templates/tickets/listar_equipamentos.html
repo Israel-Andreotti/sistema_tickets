@@ -80,7 +80,12 @@
                 <td>{{ equipamento.marca }}</td>
                 <td>{{ equipamento.modelo }}</td>
                 <td>{{ equipamento.setor }}</td>
-                <td>{{ equipamento.get_status_display }}</td>
+                <td>
+                    {{ equipamento.get_status_display }}
+                    {% if equipamento.status == "em_resguardo" and equipamento.data_fim_resguardo %}
+                        <div class="small text-muted">libera em {{ equipamento.data_fim_resguardo|date:"d/m/Y" }}</div>
+                    {% endif %}
+                </td>
                 <td>{{ equipamento.data_aquisicao|date:"d/m/Y"|default:"—" }}</td>
                 <td>
                     <a href="{% url 'tickets:editar_equipamento' equipamento.pk %}" class="link-secondary small">Editar</a>

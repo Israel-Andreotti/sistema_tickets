@@ -10,6 +10,7 @@ from .models import (
     Categoria,
     ComentarioTicket,
     ItemConfiguracao,
+    RespostaRapida,
     Setor,
     Ticket,
     patrimonio_validator,
@@ -200,7 +201,7 @@ class ComentarioForm(forms.ModelForm):
         widgets = {
             "tipo": forms.RadioSelect,
             "texto": forms.Textarea(attrs={
-                "class": "form-control", "rows": 3,
+                "class": "form-control", "rows": 8,
                 "placeholder": "Atualização, diagnóstico ou procedimento adotado neste chamado...",
             }),
         }
@@ -212,6 +213,7 @@ class CadastrarEquipamentoForm(forms.ModelForm):
         fields = [
             "patrimonio", "categoria", "marca", "modelo", "setor", "status",
             "data_aquisicao", "data_validade_garantia",
+            "nivel_cargo_desligado", "data_inicio_resguardo",
         ]
         widgets = {
             "patrimonio": forms.TextInput(attrs={"class": "form-control", "placeholder": "6 dígitos, ex: 000123"}),
@@ -222,7 +224,32 @@ class CadastrarEquipamentoForm(forms.ModelForm):
             "status": forms.Select(attrs={"class": "form-select"}),
             "data_aquisicao": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
             "data_validade_garantia": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+            "nivel_cargo_desligado": forms.Select(attrs={"class": "form-select"}),
+            "data_inicio_resguardo": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["nivel_cargo_desligado"].required = False
+        self.fields["nivel_cargo_desligado"].choices = [("", "Selecione...")] + list(
+            ItemConfiguracao.NivelCargoDesligado.choices
+        )
+        self.fields["data_inicio_resguardo"].required = False
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get("status") == ItemConfiguracao.Status.EM_RESGUARDO:
+            if not cleaned_data.get("nivel_cargo_desligado"):
+                self.add_error(
+                    "nivel_cargo_desligado",
+                    "Informe o cargo do funcionário desligado para calcular o prazo de resguardo.",
+                )
+            if not cleaned_data.get("data_inicio_resguardo"):
+                self.add_error(
+                    "data_inicio_resguardo",
+                    "Informe a data de início do resguardo.",
+                )
+        return cleaned_data
 
 
 class LoginForm(AuthenticationForm):
@@ -279,3 +306,22 @@ class ArtigoForm(forms.ModelForm):
         if not strip_tags(limpo).strip():
             raise forms.ValidationError("O conteúdo do artigo não pode ficar vazio.")
         return limpo
+
+
+class RespostaRapidaForm(forms.ModelForm):
+    class Meta:
+        model = RespostaRapida
+        fields = ["titulo", "grupo", "tipo_padrao", "texto"]
+        widgets = {
+            "titulo": forms.TextInput(attrs={"class": "form-control"}),
+            "grupo": forms.Select(attrs={"class": "form-select"}),
+            "tipo_padrao": forms.Select(attrs={"class": "form-select"}),
+            "texto": forms.Textarea(attrs={"class": "form-control", "rows": 6}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["grupo"].required = False
+        self.fields["grupo"].choices = [("", "Sem grupo")] + list(Categoria.Grupo.choices)
+        self.fields["tipo_padrao"].required = False
+        self.fields["tipo_padrao"].choices = [("", "Não marcar nenhum")] + list(ComentarioTicket.Tipo.choices)

@@ -74,6 +74,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 campo.disabled = checkboxSemMovimentacao.checked;
             });
             atualizarBotaoFechar();
+            // Marcar a caixa já é a confirmação em si — envia na hora, em vez
+            // de depender de outro clique em "Movimentar equipamento" (que só
+            // faz sentido pra quem está de fato registrando um patrimônio).
+            // Sem isso, qualquer outra ação na página (ex: confirmar
+            // classificação) recarrega a tela e perde essa marcação, já que
+            // ela nunca tinha sido enviada ao servidor.
+            if (checkboxSemMovimentacao.checked) {
+                checkboxSemMovimentacao.closest('form').requestSubmit();
+            }
         });
         camposPatrimonio.forEach(function (campo) {
             campo.addEventListener('input', function () {
@@ -82,6 +91,121 @@ document.addEventListener('DOMContentLoaded', function () {
                     atualizarBotaoFechar();
                 }
             });
+        });
+    }
+
+    // Respostas rápidas: busca por título entre os modelos cadastrados e, ao
+    // escolher um, insere o texto no comentário (sem apagar o que o técnico
+    // já tiver digitado) e, se o template tiver um tipo padrão, já marca o
+    // radio correspondente. Mesmo padrão de combo com busca usado em
+    // "setor" na abertura de chamado (input + painel .menu-flutuante).
+    var campoTextoComentario = document.getElementById('id_texto');
+    var dadosRespostaRapidaEl = document.getElementById('dados-respostas-rapidas');
+    var buscaRespostaRapida = document.getElementById('buscaRespostaRapida');
+    var sugestoesRespostaRapida = document.getElementById('sugestoesRespostaRapida');
+
+    if (dadosRespostaRapidaEl && buscaRespostaRapida && sugestoesRespostaRapida) {
+        var respostasRapidas = JSON.parse(dadosRespostaRapidaEl.textContent);
+        var itensAtuaisResposta = [];
+        var indiceAtivoResposta = -1;
+
+        function fecharSugestoesResposta() {
+            sugestoesRespostaRapida.classList.add('d-none');
+            sugestoesRespostaRapida.innerHTML = '';
+            itensAtuaisResposta = [];
+            indiceAtivoResposta = -1;
+        }
+
+        function selecionarResposta(item) {
+            var textoAtual = campoTextoComentario.value.trim();
+            campoTextoComentario.value = textoAtual
+                ? textoAtual + '\n\n' + item.texto
+                : item.texto;
+            campoTextoComentario.focus();
+
+            if (item.tipo) {
+                var radio = document.getElementById('tipo_' + item.tipo);
+                if (radio) radio.checked = true;
+            }
+
+            buscaRespostaRapida.value = '';
+            fecharSugestoesResposta();
+        }
+
+        function destacarSugestaoAtivaResposta() {
+            Array.prototype.forEach.call(sugestoesRespostaRapida.querySelectorAll('.menu-flutuante-item'), function (el, indice) {
+                el.classList.toggle('ativo', indice === indiceAtivoResposta);
+            });
+        }
+
+        function renderizarSugestoesResposta(lista) {
+            itensAtuaisResposta = lista;
+            indiceAtivoResposta = -1;
+            sugestoesRespostaRapida.innerHTML = '';
+            if (!lista.length) {
+                fecharSugestoesResposta();
+                return;
+            }
+            var grupoAnterior = null;
+            lista.forEach(function (item) {
+                if (item.grupo_label !== grupoAnterior) {
+                    var rotulo = document.createElement('div');
+                    rotulo.className = 'menu-flutuante-grupo';
+                    rotulo.textContent = item.grupo_label;
+                    sugestoesRespostaRapida.appendChild(rotulo);
+                    grupoAnterior = item.grupo_label;
+                }
+                var botao = document.createElement('button');
+                botao.type = 'button';
+                botao.className = 'menu-flutuante-item';
+                botao.textContent = item.tipo_label ? item.titulo + ' — ' + item.tipo_label : item.titulo;
+                botao.addEventListener('mousedown', function (evento) {
+                    evento.preventDefault();
+                    selecionarResposta(item);
+                });
+                sugestoesRespostaRapida.appendChild(botao);
+            });
+            sugestoesRespostaRapida.classList.remove('d-none');
+        }
+
+        buscaRespostaRapida.addEventListener('input', function () {
+            var termo = buscaRespostaRapida.value.trim().toLowerCase();
+            if (!termo) {
+                fecharSugestoesResposta();
+                return;
+            }
+            renderizarSugestoesResposta(respostasRapidas.filter(function (item) {
+                return item.titulo.toLowerCase().indexOf(termo) !== -1 ||
+                    item.texto.toLowerCase().indexOf(termo) !== -1;
+            }));
+        });
+
+        buscaRespostaRapida.addEventListener('focus', function () {
+            if (!buscaRespostaRapida.value.trim()) {
+                renderizarSugestoesResposta(respostasRapidas);
+            }
+        });
+
+        buscaRespostaRapida.addEventListener('keydown', function (evento) {
+            if (!itensAtuaisResposta.length) return;
+            if (evento.key === 'ArrowDown') {
+                evento.preventDefault();
+                indiceAtivoResposta = Math.min(indiceAtivoResposta + 1, itensAtuaisResposta.length - 1);
+                destacarSugestaoAtivaResposta();
+            } else if (evento.key === 'ArrowUp') {
+                evento.preventDefault();
+                indiceAtivoResposta = Math.max(indiceAtivoResposta - 1, 0);
+                destacarSugestaoAtivaResposta();
+            } else if (evento.key === 'Enter' && indiceAtivoResposta >= 0) {
+                evento.preventDefault();
+                selecionarResposta(itensAtuaisResposta[indiceAtivoResposta]);
+            } else if (evento.key === 'Escape') {
+                fecharSugestoesResposta();
+            }
+        });
+
+        buscaRespostaRapida.addEventListener('blur', function () {
+            setTimeout(fecharSugestoesResposta, 150);
         });
     }
 });

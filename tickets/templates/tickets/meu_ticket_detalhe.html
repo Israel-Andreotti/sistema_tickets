@@ -1,7 +1,7 @@
 {% extends "tickets/base.html" %}
 {% load ticket_extras %}
 
-{% block title %}Chamado #{{ ticket.pk }} — Chamados de TI{% endblock %}
+{% block title %}Chamado {{ ticket.codigo }} — Chamados de TI{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
@@ -11,10 +11,15 @@
         <div class="card shadow-sm mt-2 mb-4">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start mb-3">
-                    <h1 class="h4 card-title mb-0">Chamado #{{ ticket.pk }}</h1>
-                    <span class="badge {% if ticket.status == 'aberto' %}bg-warning text-dark{% elif ticket.status == 'em_atendimento' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
-                        {{ ticket.get_status_display }}
-                    </span>
+                    <h1 class="h4 card-title mb-0">Chamado {{ ticket.codigo }}</h1>
+                    <div class="d-flex gap-2">
+                        <span class="badge {% if tipo_calculado == 'incidente' %}bg-danger{% else %}bg-primary{% endif %}">
+                            {% if tipo_calculado == 'incidente' %}Incidente{% else %}Requisição{% endif %}
+                        </span>
+                        <span class="badge {% if ticket.status == 'aberto' %}bg-warning text-dark{% elif ticket.status == 'em_atendimento' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                            {{ ticket.get_status_display }}
+                        </span>
+                    </div>
                 </div>
 
                 <div class="kv-grid mb-4">

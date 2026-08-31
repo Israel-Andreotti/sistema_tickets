@@ -1,0 +1,77 @@
+{% extends "tickets/base.html" %}
+{% load static %}
+
+{% block title %}Modelos de resposta — Chamados de TI{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'tickets/css/listar_artigos.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-0">
+    <h1 class="h4 mb-0">Modelos de resposta</h1>
+    <a href="{% url 'tickets:criar_resposta_rapida' %}" class="btn btn-primary btn-sm">Novo modelo</a>
+</div>
+<p class="subtitulo-institucional mb-3">Textos prontos pra inserir num comentário de chamado</p>
+
+<form method="get" class="card card-body mb-4">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-9">
+            <label for="busca" class="form-label small mb-1">Buscar</label>
+            <div class="input-group">
+                <input
+                    type="text" name="busca" id="busca" class="form-control"
+                    placeholder="Título ou conteúdo..." value="{{ busca }}">
+                <button type="submit" class="btn btn-primary">Buscar</button>
+            </div>
+        </div>
+        <div class="col-md-3">
+            {% if busca %}
+                <a href="{% url 'tickets:listar_respostas_rapidas' %}" class="btn btn-outline-secondary w-100">Limpar</a>
+            {% endif %}
+        </div>
+    </div>
+</form>
+
+{% if grupos %}
+    {% for grupo, respostas in grupos.items %}
+    <h2 class="h6 text-muted text-uppercase small mt-4 mb-2" style="letter-spacing: 0.05em;">{{ grupo }}</h2>
+    <div class="d-flex flex-column gap-3 mb-2">
+        {% for resposta in respostas %}
+        <div class="artigo-card card card-body">
+            <div class="d-flex align-items-start gap-3">
+                <span class="artigo-icone" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        <path d="M7 9h10M7 13h6"/>
+                    </svg>
+                </span>
+                <div class="flex-grow-1 artigo-corpo">
+                    <div class="d-flex justify-content-between align-items-start gap-3">
+                        <div class="fw-semibold">{{ resposta.titulo }}</div>
+                        <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                            {% if resposta.tipo_padrao %}
+                                <span class="badge bg-secondary">{{ resposta.get_tipo_padrao_display }}</span>
+                            {% endif %}
+                            <a href="{% url 'tickets:editar_resposta_rapida' resposta.pk %}" class="link-secondary small">Editar</a>
+                        </div>
+                    </div>
+                    <div class="small text-muted" style="white-space: pre-line;">{{ resposta.texto }}</div>
+                    {% if resposta.ultima_edicao %}
+                        <div class="small text-muted mt-1">
+                            Editado por {{ resposta.ultima_edicao.autor.get_full_name|default:resposta.ultima_edicao.autor.username|default:"usuário removido" }}
+                            em {{ resposta.ultima_edicao.criado_em|date:"d/m/Y H:i" }}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+{% else %}
+    <p class="text-muted small">
+        {% if busca %}Nenhum modelo de resposta encontrado.{% else %}Nenhum modelo de resposta cadastrado ainda.{% endif %}
+    </p>
+{% endif %}
+{% endblock %}

@@ -7,6 +7,8 @@ de recomendações) são armazenadas nestas tabelas — nunca fixadas no código
 da aplicação, conforme exigido no projeto.
 """
 
+from datetime import timedelta
+
 from django.conf import settings
 from django.core.validators import RegexValidator
 from django.db import models
@@ -46,8 +48,27 @@ class Categoria(models.Model):
         CLINICO = "clinico", "Sistemas clínicos/assistenciais"
         SUPORTE = "suporte", "Software e suporte geral"
 
+    class Tipo(models.TextChoices):
+        INCIDENTE = "incidente", "Incidente"
+        REQUISICAO = "requisicao", "Requisição"
+
+    class NivelAtendimento(models.TextChoices):
+        N1 = "n1", "N1"
+        N2 = "n2", "N2"
+        N3 = "n3", "N3"
+
     nome = models.CharField(max_length=150)
     grupo = models.CharField(max_length=20, choices=Grupo.choices)
+    tipo = models.CharField(
+        max_length=20, choices=Tipo.choices, default=Tipo.INCIDENTE,
+        help_text="Incidente: algo quebrou e precisa ser restaurado. "
+                   "Requisição: um pedido padrão, sem urgência de falha.",
+    )
+    nivel_atendimento = models.CharField(
+        max_length=5, choices=NivelAtendimento.choices, default=NivelAtendimento.N1,
+        help_text="Nível de atendimento de origem dessa categoria — a maioria fica em "
+                   "N1; cure aqui as que exigem um especialista (N2/N3)",
+    )
     peso_categoria = models.PositiveSmallIntegerField(
         help_text="Criticidade intrínseca do serviço, de 1 a 5"
     )
@@ -102,8 +123,15 @@ class ItemConfiguracao(models.Model):
 
     class Status(models.TextChoices):
         ATIVO = "ativo", "Disponível"
+        EM_USO = "em_uso", "Em uso"
         MANUTENCAO = "manutencao", "Em triagem"
+        EM_RESGUARDO = "em_resguardo", "Em resguardo"
+        RESGUARDO_LIBERADO = "resguardo_liberado", "Resguardo encerrado — liberado para formatação"
         BAIXADO = "baixado", "Baixado"
+
+    class NivelCargoDesligado(models.TextChoices):
+        LIDERANCA = "lideranca", "Gestor ou diretor"
+        COLABORADOR = "colaborador", "Outro cargo"
 
     patrimonio = models.CharField(
         max_length=6, unique=True, validators=[patrimonio_validator],
@@ -121,6 +149,27 @@ class ItemConfiguracao(models.Model):
         null=True, blank=True,
         help_text="Data em que a garantia do equipamento expira, se houver",
     )
+    nivel_cargo_desligado = models.CharField(
+        max_length=20, choices=NivelCargoDesligado.choices, null=True, blank=True,
+        help_text="Cargo do funcionário desligado — define o prazo de resguardo "
+                   "(30 dias para liderança, 15 dias para os demais cargos)",
+    )
+    data_inicio_resguardo = models.DateField(
+        null=True, blank=True,
+        help_text="Data de desligamento do funcionário / início do resguardo",
+    )
+
+    @property
+    def prazo_resguardo_dias(self):
+        if not self.nivel_cargo_desligado:
+            return None
+        return 30 if self.nivel_cargo_desligado == self.NivelCargoDesligado.LIDERANCA else 15
+
+    @property
+    def data_fim_resguardo(self):
+        if not self.data_inicio_resguardo or self.prazo_resguardo_dias is None:
+            return None
+        return self.data_inicio_resguardo + timedelta(days=self.prazo_resguardo_dias)
 
     class Meta:
         verbose_name = "Item de configuração"
@@ -186,24 +235,62 @@ class Ticket(models.Model):
     tecnico_responsavel = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="tickets_atribuidos",
-        limit_choices_to={"is_staff": True},
+        limit_choices_to={"is_staff": True, "is_active": True},
         help_text="Técnico responsável pelo atendimento deste chamado",
     )
     descricao = models.TextField()
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.ABERTO
     )
+    nivel_atual = models.CharField(
+        max_length=5, choices=Categoria.NivelAtendimento.choices,
+        default=Categoria.NivelAtendimento.N1,
+        help_text="Nível de atendimento atual do chamado — muda só por escalonamento explícito",
+    )
     prioridade_calculada = models.PositiveSmallIntegerField(null=True, blank=True)
     data_abertura = models.DateTimeField(auto_now_add=True)
     data_fechamento = models.DateTimeField(null=True, blank=True)
+
+    # Atribuídos uma única vez na abertura do chamado (a partir do tipo de
+    # categoria_sugerida) e nunca recalculados depois — o código de um
+    # chamado é estável, mesmo que o técnico reclassifique pra uma categoria
+    # de outro tipo. Ver services/codigo.py.
+    codigo_tipo = models.CharField(max_length=20, choices=Categoria.Tipo.choices)
+    codigo_numero = models.PositiveIntegerField()
 
     class Meta:
         verbose_name = "Ticket"
         verbose_name_plural = "Tickets"
         ordering = ["-prioridade_calculada", "data_abertura"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["codigo_tipo", "codigo_numero"], name="ticket_codigo_unico"
+            ),
+        ]
+
+    @property
+    def codigo(self):
+        prefixo = "INC" if self.codigo_tipo == Categoria.Tipo.INCIDENTE else "REQ"
+        return f"{prefixo}{self.codigo_numero}"
 
     def __str__(self):
-        return f"Ticket #{self.pk} — {self.setor}"
+        return f"Ticket {self.codigo} — {self.setor}"
+
+
+class ContadorChamado(models.Model):
+    """Contador atômico do último número sequencial usado por tipo de
+    chamado (Incidente/Requisição) — cada tipo tem sua própria sequência,
+    incrementada via services.codigo.proximo_numero_sequencial."""
+
+    tipo = models.CharField(max_length=20, choices=Categoria.Tipo.choices, unique=True)
+    ultimo_numero = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Contador de chamado"
+        verbose_name_plural = "Contadores de chamado"
+
+    def __str__(self):
+        return f"{self.get_tipo_display()} — último: {self.ultimo_numero}"
 
 
 class ComentarioTicket(models.Model):
@@ -230,6 +317,94 @@ class ComentarioTicket(models.Model):
         return f"Comentário de {self.autor} em #{self.ticket_id}"
 
 
+class RespostaRapida(models.Model):
+    """Template de comentário pra problema repetitivo (ex: "Limpeza de
+    cache", "Reset de senha") — o técnico insere com um clique na tela do
+    chamado em vez de digitar o passo a passo toda vez."""
+
+    titulo = models.CharField(max_length=100, help_text="Nome curto, mostrado no botão de inserir")
+    texto = models.TextField(help_text="Texto inserido no comentário ao clicar")
+    tipo_padrao = models.CharField(
+        max_length=20, choices=ComentarioTicket.Tipo.choices, null=True, blank=True,
+        help_text="Se definido, já marca esse tipo de comentário ao inserir o template",
+    )
+    grupo = models.CharField(
+        max_length=20, choices=Categoria.Grupo.choices, null=True, blank=True,
+        help_text="Agrupa esse modelo na listagem — mesma classificação usada nas categorias de chamado",
+    )
+
+    class Meta:
+        verbose_name = "Resposta rápida"
+        verbose_name_plural = "Respostas rápidas"
+        ordering = ["grupo", "titulo"]
+
+    def __str__(self):
+        return self.titulo
+
+
+class RespostaRapidaEdicao(models.Model):
+    """Log de auditoria: cada criação/edição de uma RespostaRapida grava um
+    registro aqui, pra sempre dar pra ver quem mexeu no template e quando —
+    diferente de um campo "editado por" simples, mantém o histórico
+    completo em vez de só a última alteração."""
+
+    resposta = models.ForeignKey(RespostaRapida, on_delete=models.CASCADE, related_name="edicoes")
+    autor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Edição de resposta rápida"
+        verbose_name_plural = "Edições de resposta rápida"
+        ordering = ["-criado_em"]
+
+    def __str__(self):
+        return f"Edição de \"{self.resposta}\" por {self.autor} em {self.criado_em:%d/%m/%Y %H:%M}"
+
+
+class EscalonamentoTicket(models.Model):
+    """Log de escalonamento entre níveis de atendimento (N1→N2→N3) — mantém
+    o histórico completo de quem escalou, quando e por quê."""
+
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="escalonamentos")
+    autor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    nivel_anterior = models.CharField(max_length=5, choices=Categoria.NivelAtendimento.choices)
+    nivel_novo = models.CharField(max_length=5, choices=Categoria.NivelAtendimento.choices)
+    justificativa = models.TextField(blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Escalonamento de chamado"
+        verbose_name_plural = "Escalonamentos de chamado"
+        ordering = ["-criado_em"]
+
+    def __str__(self):
+        return f"Chamado #{self.ticket_id}: {self.nivel_anterior} → {self.nivel_novo}"
+
+
+class PerfilTecnico(models.Model):
+    """Nível de atendimento do técnico (N1/N2/N3) — todo usuário com
+    is_staff ganha um automaticamente (ver signals.py), nascendo em N1; o
+    gestor cura quem é N2/N3 depois pelo Django admin. Usado pra mostrar o
+    nível no papel/perfil do técnico e pra notificar quem atende aquele
+    nível quando um chamado é escalado pra ele."""
+
+    usuario = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="perfil_tecnico"
+    )
+    nivel_atendimento = models.CharField(
+        max_length=5, choices=Categoria.NivelAtendimento.choices, default=Categoria.NivelAtendimento.N1,
+        help_text="Nível de atendimento desse técnico — usado pra notificá-lo quando "
+                   "um chamado é escalado pro nível dele",
+    )
+
+    class Meta:
+        verbose_name = "Perfil de técnico"
+        verbose_name_plural = "Perfis de técnico"
+
+    def __str__(self):
+        return f"{self.usuario} — {self.get_nivel_atendimento_display()}"
+
+
 class Notificacao(models.Model):
     """Aviso in-app pro solicitante: mudança de status do chamado ou resposta/
     desfecho do técnico. Fica guardada mesmo depois de lida — só o campo
@@ -238,6 +413,7 @@ class Notificacao(models.Model):
     class Tipo(models.TextChoices):
         MUDANCA_STATUS = "mudanca_status", "Mudança de status"
         NOVO_COMENTARIO = "novo_comentario", "Novo comentário"
+        ESCALONAMENTO = "escalonamento", "Escalonamento"
 
     destinatario = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notificacoes"

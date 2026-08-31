@@ -80,6 +80,24 @@
 </div>
 
 <div class="painel-secao">
+    <p class="painel-titulo-texto">Chamados ativos por tipo</p>
+    <div class="row g-3">
+        <div class="col-sm-6 col-lg-3">
+            <div class="stat-card">
+                <div class="stat-label">Incidentes</div>
+                <div class="stat-value">{{ chamados_por_tipo.incidentes }}</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="stat-card">
+                <div class="stat-label">Requisições</div>
+                <div class="stat-value">{{ chamados_por_tipo.requisicoes }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="painel-secao">
     <p class="painel-titulo-texto">Eficiência e desempenho (últimos 7 dias)</p>
     <div class="row g-3">
         <div class="col-sm-6 col-lg-3">
@@ -145,7 +163,7 @@
                         <tbody>
                             {% for item in chamados_criticos %}
                             <tr onclick="window.location='{% url 'tickets:detalhe_ticket' item.ticket.pk %}'" style="cursor: pointer;">
-                                <td>{{ item.ticket.pk }}</td>
+                                <td>{{ item.ticket.codigo }}</td>
                                 <td>{{ item.ticket.solicitante_nome }}</td>
                                 <td>{{ item.ticket.setor }}</td>
                                 <td class="{% if item.estourado %}text-danger fw-semibold{% endif %}">

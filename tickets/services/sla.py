@@ -54,6 +54,6 @@ def fechar_ticket(ticket: Ticket, *, data_fechamento=None) -> HistoricoSLA:
         )
         notificar(
             ticket, Notificacao.Tipo.MUDANCA_STATUS,
-            f"Seu chamado #{ticket.pk} foi fechado.",
+            f"Seu chamado {ticket.codigo} foi fechado.",
         )
     return historico

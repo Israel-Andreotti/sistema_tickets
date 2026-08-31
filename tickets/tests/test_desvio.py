@@ -49,6 +49,8 @@ class AgregarDesviosTests(TestCase):
         ticket = Ticket.objects.create(
             categoria_sugerida=self.categoria,
             categoria_final=self.categoria,
+            codigo_tipo=self.categoria.tipo,
+            codigo_numero=Ticket.objects.count() + 1,
             tecnico_responsavel=self.tecnico,
             movimentacao_confirmada=True,
             setor=self.setor,

@@ -57,3 +57,27 @@
         <div class="form-text">{{ form.data_validade_garantia.help_text }}</div>
     {% endif %}
 </div>
+
+<div id="campos-resguardo" class="row d-none">
+    <div class="col-md-6 mb-3">
+        <label for="{{ form.nivel_cargo_desligado.id_for_label }}" class="form-label">{{ form.nivel_cargo_desligado.label }}</label>
+        {{ form.nivel_cargo_desligado }}
+        {% if form.nivel_cargo_desligado.help_text %}
+            <div class="form-text">{{ form.nivel_cargo_desligado.help_text }}</div>
+        {% endif %}
+        {% for error in form.nivel_cargo_desligado.errors %}
+            <div class="text-danger small">{{ error }}</div>
+        {% endfor %}
+    </div>
+    <div class="col-md-6 mb-3">
+        <label for="{{ form.data_inicio_resguardo.id_for_label }}" class="form-label">{{ form.data_inicio_resguardo.label }}</label>
+        {{ form.data_inicio_resguardo }}
+        {% if form.data_inicio_resguardo.help_text %}
+            <div class="form-text">{{ form.data_inicio_resguardo.help_text }}</div>
+        {% endif %}
+        {% for error in form.data_inicio_resguardo.errors %}
+            <div class="text-danger small">{{ error }}</div>
+        {% endfor %}
+        <div id="previsao-liberacao-resguardo" class="form-text"></div>
+    </div>
+</div>

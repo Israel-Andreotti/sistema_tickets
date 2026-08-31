@@ -20,6 +20,8 @@ class NotificarTests(TestCase):
         self.setor = Setor.objects.create(nome="Setor teste notif", peso_setor=3)
         self.ticket = Ticket.objects.create(
             categoria_sugerida=self.categoria,
+            codigo_tipo=self.categoria.tipo,
+            codigo_numero=Ticket.objects.count() + 1,
             setor=self.setor,
             descricao="Descrição teste",
             solicitante=self.solicitante,
@@ -54,6 +56,7 @@ class NotificarTests(TestCase):
         outro_solicitante = get_user_model().objects.create_user(username="outro_solicitante_teste_notif")
         outro_ticket = Ticket.objects.create(
             categoria_sugerida=self.categoria, setor=self.setor, descricao="Outro",
+            codigo_tipo=self.categoria.tipo, codigo_numero=Ticket.objects.count() + 1,
             solicitante=outro_solicitante, solicitante_nome="Outro", solicitante_ramal="1",
             solicitante_sala="Sala 1",
         )
@@ -85,6 +88,8 @@ class NotificacaoNasTransicoesDeStatusTests(TestCase):
         self.setor = Setor.objects.create(nome="Setor teste notif2", peso_setor=3)
         self.ticket = Ticket.objects.create(
             categoria_sugerida=self.categoria,
+            codigo_tipo=self.categoria.tipo,
+            codigo_numero=Ticket.objects.count() + 1,
             setor=self.setor,
             descricao="Descrição teste",
             solicitante=self.solicitante,
@@ -154,6 +159,8 @@ class NotificacaoAoComentarViewTests(TestCase):
         self.setor = Setor.objects.create(nome="Setor teste notif view", peso_setor=3)
         self.ticket = Ticket.objects.create(
             categoria_sugerida=self.categoria,
+            codigo_tipo=self.categoria.tipo,
+            codigo_numero=Ticket.objects.count() + 1,
             setor=self.setor,
             descricao="Descrição teste",
             solicitante=self.solicitante,
@@ -207,6 +214,8 @@ class NotificacaoViewsDoSolicitanteTests(TestCase):
         self.setor = Setor.objects.create(nome="Setor teste notif views", peso_setor=3)
         self.ticket = Ticket.objects.create(
             categoria_sugerida=self.categoria,
+            codigo_tipo=self.categoria.tipo,
+            codigo_numero=Ticket.objects.count() + 1,
             setor=self.setor,
             descricao="Descrição teste",
             solicitante=self.solicitante,

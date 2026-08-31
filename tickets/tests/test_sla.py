@@ -23,6 +23,8 @@ class FecharTicketTests(TestCase):
         self.ticket = Ticket.objects.create(
             categoria_sugerida=self.categoria,
             categoria_final=self.categoria,
+            codigo_tipo=self.categoria.tipo,
+            codigo_numero=Ticket.objects.count() + 1,
             tecnico_responsavel=self.tecnico,
             movimentacao_confirmada=True,
             setor=self.setor,
@@ -35,6 +37,8 @@ class FecharTicketTests(TestCase):
     def test_fechar_sem_categoria_final_levanta_erro(self):
         ticket_sem_final = Ticket.objects.create(
             categoria_sugerida=self.categoria,
+            codigo_tipo=self.categoria.tipo,
+            codigo_numero=Ticket.objects.count() + 1,
             tecnico_responsavel=self.tecnico,
             movimentacao_confirmada=True,
             setor=self.setor,
@@ -50,6 +54,8 @@ class FecharTicketTests(TestCase):
         ticket_sem_tecnico = Ticket.objects.create(
             categoria_sugerida=self.categoria,
             categoria_final=self.categoria,
+            codigo_tipo=self.categoria.tipo,
+            codigo_numero=Ticket.objects.count() + 1,
             movimentacao_confirmada=True,
             setor=self.setor,
             descricao="sem tecnico responsavel",
@@ -64,6 +70,8 @@ class FecharTicketTests(TestCase):
         ticket_sem_movimentacao = Ticket.objects.create(
             categoria_sugerida=self.categoria,
             categoria_final=self.categoria,
+            codigo_tipo=self.categoria.tipo,
+            codigo_numero=Ticket.objects.count() + 1,
             tecnico_responsavel=self.tecnico,
             setor=self.setor,
             descricao="sem movimentacao confirmada",

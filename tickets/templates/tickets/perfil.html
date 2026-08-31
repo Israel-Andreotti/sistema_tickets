@@ -17,6 +17,9 @@
                         <div>
                             <h1 class="h4 mb-1">{{ nome }}</h1>
                             <span class="badge bg-secondary">{{ cargo }}</span>
+                            {% if nivel_tecnico %}
+                                <span class="badge bg-info text-dark">{{ nivel_tecnico.get_nivel_atendimento_display }}</span>
+                            {% endif %}
                         </div>
                     </div>
                     {% if eh_proprio_perfil %}
@@ -41,6 +44,12 @@
                         <div class="kv-label">E-mail institucional</div>
                         <div class="kv-value">{{ usuario.email|default:"Não cadastrado" }}</div>
                     </div>
+                    {% if nivel_tecnico %}
+                    <div>
+                        <div class="kv-label">Nível de atendimento</div>
+                        <div class="kv-value">{{ nivel_tecnico.get_nivel_atendimento_display }}</div>
+                    </div>
+                    {% endif %}
                 </div>
 
                 {% if eh_proprio_perfil %}

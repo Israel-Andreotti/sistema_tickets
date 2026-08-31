@@ -12,6 +12,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.html import format_html
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 
@@ -22,6 +23,7 @@ from .forms import (
     ComentarioForm,
     ConfirmarClassificacaoForm,
     EditarPerfilForm,
+    RespostaRapidaForm,
     TrocarSenhaForm,
 )
 from .models import (
@@ -30,18 +32,29 @@ from .models import (
     ComentarioTicket,
     HistoricoSLA,
     ItemConfiguracao,
+    MovimentacaoEquipamento,
     Notificacao,
+    RespostaRapida,
+    RespostaRapidaEdicao,
     Setor,
     Ticket,
 )
-from .services.classificacao import abrir_ticket, atribuir_tecnico, confirmar_classificacao_final
+from .services.classificacao import (
+    abrir_ticket,
+    atribuir_tecnico,
+    confirmar_classificacao_final,
+    escalar_ticket,
+    niveis_acima,
+)
 from .services.desvio import classificar_desvio
 from .services.equipamento import (
     equipamento_elegivel_para_entrada,
     equipamento_elegivel_para_saida,
+    liberar_resguardos_vencidos,
     movimentar_equipamento,
     obter_setor_ti,
     registrar_sem_movimentacao,
+    remover_movimentacao_pendente,
 )
 from .services.notificacoes import marcar_como_lida, marcar_todas_como_lidas, notificar
 from .services.parametros import ParametroNaoConfigurado
@@ -96,17 +109,21 @@ def abrir_ticket_view(request):
             )
             messages.success(
                 request,
-                f"Chamado #{ticket.pk} aberto com sucesso. "
-                f"Categoria: {ticket.categoria_sugerida.nome} — "
-                f"SLA esperado: {ticket.categoria_sugerida.sla_horas}h. "
-                f"Anote o número #{ticket.pk} — você vai precisar dele para consultar "
-                f"o andamento do chamado depois.",
+                format_html(
+                    "Chamado número {} feito com sucesso. Guarde esse número caso queira "
+                    'consultar futuramente. <a href="{}">Consulte aqui</a>.',
+                    ticket.codigo, reverse("tickets:meus_tickets"),
+                ),
             )
             return redirect("tickets:abrir_ticket")
     else:
         form = AbrirTicketForm(user=request.user)
 
     return render(request, "tickets/abrir_ticket.html", {"form": form})
+
+
+CODIGO_TICKET_REGEX = re.compile(r"^(INC|REQ)(\d+)$", re.IGNORECASE)
+PREFIXO_PARA_TIPO = {"INC": Categoria.Tipo.INCIDENTE, "REQ": Categoria.Tipo.REQUISICAO}
 
 
 @login_required
@@ -119,12 +136,19 @@ def meus_tickets_view(request):
     resultados = None
 
     if numero:
-        if not numero.isdigit():
-            erro = "Digite apenas o número do chamado."
-        elif not Ticket.objects.filter(pk=numero, solicitante=request.user).exists():
-            erro = f"Nenhum chamado seu encontrado com o número {numero}."
+        match = CODIGO_TICKET_REGEX.match(numero)
+        if not match:
+            erro = "Digite o código do chamado no formato INC42 ou REQ7."
         else:
-            return redirect("tickets:meu_ticket_detalhe", pk=numero)
+            prefixo, codigo_numero = match.group(1).upper(), match.group(2)
+            ticket = Ticket.objects.filter(
+                codigo_tipo=PREFIXO_PARA_TIPO[prefixo], codigo_numero=codigo_numero,
+                solicitante=request.user,
+            ).first()
+            if ticket is None:
+                erro = f"Nenhum chamado seu encontrado com o código {numero.upper()}."
+            else:
+                return redirect("tickets:meu_ticket_detalhe", pk=ticket.pk)
     elif data_de or data_ate:
         resultados = (
             Ticket.objects.filter(solicitante=request.user)
@@ -166,7 +190,10 @@ def meu_ticket_detalhe_view(request, pk):
             "desfecho": ("success", "✅", "Desfecho / solução"),
         }[comentario.tipo]
 
-    return render(request, "tickets/meu_ticket_detalhe.html", {"ticket": ticket, "comentarios": comentarios})
+    tipo_calculado = (ticket.categoria_final or ticket.categoria_sugerida).tipo
+    return render(request, "tickets/meu_ticket_detalhe.html", {
+        "ticket": ticket, "comentarios": comentarios, "tipo_calculado": tipo_calculado,
+    })
 
 
 @login_required
@@ -259,6 +286,7 @@ def perfil_view(request, username):
     return render(request, "tickets/perfil.html", {
         "usuario": usuario,
         "cargo": _cargo_usuario(usuario),
+        "nivel_tecnico": usuario.perfil_tecnico if usuario.is_staff else None,
         "form_senha": form_senha,
         "form_perfil": form_perfil,
         "eh_proprio_perfil": eh_proprio_perfil,
@@ -277,14 +305,24 @@ def _filtrar_fila_tickets(request):
 
     setor_id = request.GET.get("setor", "").strip()
     status = request.GET.get("status", "").strip()
+    tipo = request.GET.get("tipo", "").strip()
+    nivel = request.GET.get("nivel", "").strip()
     busca = request.GET.get("busca", "").strip()
     data_de = request.GET.get("data_de", "").strip()
     data_ate = request.GET.get("data_ate", "").strip()
+    atribuidos_a_mim = request.GET.get("atribuidos_a_mim") == "on"
 
     if setor_id:
         tickets_qs = tickets_qs.filter(setor_id=setor_id)
     if status in (Ticket.Status.ABERTO, Ticket.Status.EM_ATENDIMENTO):
         tickets_qs = tickets_qs.filter(status=status)
+    if tipo in (Categoria.Tipo.INCIDENTE, Categoria.Tipo.REQUISICAO):
+        tickets_qs = tickets_qs.filter(
+            Q(categoria_final__tipo=tipo)
+            | Q(categoria_final__isnull=True, categoria_sugerida__tipo=tipo)
+        )
+    if nivel in Categoria.NivelAtendimento.values:
+        tickets_qs = tickets_qs.filter(nivel_atual=nivel)
     if busca:
         tickets_qs = tickets_qs.filter(
             Q(solicitante_nome__icontains=busca) | Q(descricao__icontains=busca)
@@ -293,14 +331,30 @@ def _filtrar_fila_tickets(request):
         tickets_qs = tickets_qs.filter(data_abertura__date__gte=data_de)
     if data_ate:
         tickets_qs = tickets_qs.filter(data_abertura__date__lte=data_ate)
+    if atribuidos_a_mim:
+        tickets_qs = tickets_qs.filter(tecnico_responsavel=request.user)
+
+    # Alternância "Todos" / "Meus chamados": preserva os outros filtros já
+    # aplicados (setor, status etc.), só troca o atribuidos_a_mim — usado
+    # pelo toggle no topo da fila, que navega direto sem passar pelo
+    # formulário de filtros.
+    params_todos = request.GET.copy()
+    params_todos.pop("atribuidos_a_mim", None)
+    params_meus = request.GET.copy()
+    params_meus["atribuidos_a_mim"] = "on"
 
     filtros = {
         "setor_selecionado": setor_id,
         "status_selecionado": status,
+        "tipo_selecionado": tipo,
+        "nivel_selecionado": nivel,
         "busca": busca,
         "data_de": data_de,
         "data_ate": data_ate,
-        "algum_filtro": bool(setor_id or status or busca or data_de or data_ate),
+        "atribuidos_a_mim": atribuidos_a_mim,
+        "querystring_todos": params_todos.urlencode(),
+        "querystring_meus": params_meus.urlencode(),
+        "algum_filtro": bool(setor_id or status or tipo or nivel or busca or data_de or data_ate),
     }
     return tickets_qs, filtros
 
@@ -316,6 +370,7 @@ def fila_tickets_view(request):
         ticket.prazo = ticket.data_abertura + timedelta(hours=float(categoria_referencia.sla_horas))
         ticket.prazo_estourado = ticket.prazo < agora
         ticket.prazo_proximo = not ticket.prazo_estourado and (ticket.prazo - agora) <= timedelta(hours=1)
+        ticket.tipo_calculado = categoria_referencia.tipo
 
     # "Abertos" e "Em atendimento" são estado atual — não fazem sentido presos
     # a uma janela de tempo (um chamado aberto há uma semana ainda está
@@ -402,6 +457,14 @@ def dashboard_view(request):
         contagem_por_setor[ticket.setor.nome] = contagem_por_setor.get(ticket.setor.nome, 0) + 1
     volume_por_setor = sorted(contagem_por_setor.items(), key=lambda item: item[1], reverse=True)[:8]
     maior_volume_setor = max((total for _, total in volume_por_setor), default=0)
+
+    chamados_por_tipo = {"incidentes": 0, "requisicoes": 0}
+    for ticket in tickets_ativos:
+        categoria_referencia = ticket.categoria_final or ticket.categoria_sugerida
+        if categoria_referencia.tipo == Categoria.Tipo.INCIDENTE:
+            chamados_por_tipo["incidentes"] += 1
+        else:
+            chamados_por_tipo["requisicoes"] += 1
 
     abertos_hoje = Ticket.objects.filter(data_abertura__date=hoje).count()
     fechados_hoje = Ticket.objects.filter(data_fechamento__date=hoje).count()
@@ -501,6 +564,7 @@ def dashboard_view(request):
         "chamados_criticos": chamados_criticos,
         "volume_por_setor": volume_por_setor,
         "maior_volume_setor": maior_volume_setor,
+        "chamados_por_tipo": chamados_por_tipo,
         "fluxo_diario": fluxo_diario,
         "fluxo_svg": fluxo_svg,
     })
@@ -528,16 +592,22 @@ def historico_tickets_view(request):
 
     setor_id = request.GET.get("setor", "").strip()
     categoria_id = request.GET.get("categoria", "").strip()
+    tipo = request.GET.get("tipo", "").strip()
+    nivel = request.GET.get("nivel", "").strip()
     busca = request.GET.get("busca", "").strip()
     data_de = request.GET.get("data_de", "").strip()
     data_ate = request.GET.get("data_ate", "").strip()
     mostrar_todos = request.GET.get("todos") == "1"
-    algum_filtro = bool(setor_id or categoria_id or busca or data_de or data_ate)
+    algum_filtro = bool(setor_id or categoria_id or tipo or nivel or busca or data_de or data_ate)
 
     if setor_id:
         tickets_qs = tickets_qs.filter(setor_id=setor_id)
     if categoria_id:
         tickets_qs = tickets_qs.filter(categoria_final_id=categoria_id)
+    if tipo in (Categoria.Tipo.INCIDENTE, Categoria.Tipo.REQUISICAO):
+        tickets_qs = tickets_qs.filter(categoria_final__tipo=tipo)
+    if nivel in Categoria.NivelAtendimento.values:
+        tickets_qs = tickets_qs.filter(nivel_atual=nivel)
     if busca:
         tickets_qs = tickets_qs.filter(
             Q(solicitante_nome__icontains=busca) | Q(descricao__icontains=busca)
@@ -560,6 +630,7 @@ def historico_tickets_view(request):
                 ticket.tipo_desvio = classificar_desvio(percentual)
             else:
                 ticket.tipo_desvio = None
+            ticket.tipo_calculado = ticket.categoria_final.tipo if ticket.categoria_final else None
 
     filtros_ativos = request.GET.copy()
     filtros_ativos.pop("pagina", None)
@@ -571,6 +642,8 @@ def historico_tickets_view(request):
         "categorias": Categoria.objects.order_by("grupo", "nome"),
         "setor_selecionado": setor_id,
         "categoria_selecionada": categoria_id,
+        "tipo_selecionado": tipo,
+        "nivel_selecionado": nivel,
         "busca": busca,
         "data_de": data_de,
         "data_ate": data_ate,
@@ -630,6 +703,9 @@ def _contexto_detalhe_ticket(ticket, *, patrimonio_saida_valor=None, patrimonio_
 
     return {
         "ticket": ticket,
+        "tipo_calculado": (ticket.categoria_final or ticket.categoria_sugerida).tipo,
+        "niveis_disponiveis_escalonamento": niveis_acima(ticket.nivel_atual),
+        "escalonamentos": list(ticket.escalonamentos.select_related("autor")),
         "form": form,
         "comentarios": comentarios,
         "comentario_form": comentario_form,
@@ -637,7 +713,17 @@ def _contexto_detalhe_ticket(ticket, *, patrimonio_saida_valor=None, patrimonio_
         "setor_ti": setor_ti,
         "patrimonio_saida_valor": patrimonio_saida_valor,
         "patrimonio_entrada_valor": patrimonio_entrada_valor,
-        "tecnicos": get_user_model().objects.filter(is_staff=True).order_by("first_name", "username"),
+        "tecnicos": get_user_model().objects.filter(is_staff=True, is_active=True).order_by("first_name", "username"),
+        "respostas_rapidas": [
+            {
+                "titulo": resposta.titulo,
+                "texto": resposta.texto,
+                "tipo": resposta.tipo_padrao or "",
+                "tipo_label": resposta.get_tipo_padrao_display() if resposta.tipo_padrao else "",
+                "grupo_label": resposta.get_grupo_display() if resposta.grupo else "Sem grupo",
+            }
+            for resposta in RespostaRapida.objects.all()
+        ],
     }
 
 
@@ -665,7 +751,7 @@ def adicionar_comentario_view(request, pk):
             )
             notificar(
                 ticket, Notificacao.Tipo.NOVO_COMENTARIO,
-                f"O técnico adicionou {rotulo} ao seu chamado #{ticket.pk}.",
+                f"O técnico adicionou {rotulo} ao seu chamado {ticket.codigo}.",
             )
         messages.success(request, "Comentário adicionado.")
     else:
@@ -688,6 +774,23 @@ def classificar_ticket_view(request, pk):
 
 @tecnico_required
 @require_POST
+def escalar_ticket_view(request, pk):
+    ticket = get_object_or_404(Ticket, pk=pk)
+    novo_nivel = request.POST.get("novo_nivel", "").strip()
+    justificativa = request.POST.get("justificativa", "").strip()
+    if novo_nivel not in Categoria.NivelAtendimento.values:
+        messages.error(request, "Selecione um nível de atendimento válido.")
+        return redirect("tickets:detalhe_ticket", pk=pk)
+    try:
+        escalar_ticket(ticket, autor=request.user, novo_nivel=novo_nivel, justificativa=justificativa)
+        messages.success(request, f"Chamado {ticket.codigo} escalado para {novo_nivel.upper()}.")
+    except ValueError as exc:
+        messages.error(request, str(exc))
+    return redirect("tickets:detalhe_ticket", pk=pk)
+
+
+@tecnico_required
+@require_POST
 def atribuir_tecnico_view(request, pk):
     ticket = get_object_or_404(Ticket, pk=pk)
     tecnico_id = request.POST.get("tecnico_id", "").strip()
@@ -695,9 +798,9 @@ def atribuir_tecnico_view(request, pk):
         messages.error(request, "Selecione um técnico para atribuir o chamado.")
         return redirect("tickets:detalhe_ticket", pk=pk)
 
-    tecnico = get_object_or_404(get_user_model(), pk=tecnico_id, is_staff=True)
+    tecnico = get_object_or_404(get_user_model(), pk=tecnico_id, is_staff=True, is_active=True)
     atribuir_tecnico(ticket, tecnico)
-    messages.success(request, f"Chamado #{ticket.pk} atribuído a {tecnico.get_full_name() or tecnico.username}.")
+    messages.success(request, f"Chamado {ticket.codigo} atribuído a {tecnico.get_full_name() or tecnico.username}.")
     return redirect("tickets:detalhe_ticket", pk=pk)
 
 
@@ -709,7 +812,7 @@ def fechar_ticket_view(request, pk):
         registrar_sem_movimentacao(ticket, autor=request.user)
     try:
         fechar_ticket(ticket)
-        messages.success(request, f"Chamado #{ticket.pk} fechado.")
+        messages.success(request, f"Chamado {ticket.codigo} fechado.")
     except ValueError as exc:
         messages.error(request, str(exc))
     return redirect("tickets:detalhe_ticket", pk=pk)
@@ -775,6 +878,18 @@ def movimentar_equipamento_view(request, pk):
 
 
 @tecnico_required
+@require_POST
+def remover_movimentacao_view(request, pk, movimentacao_pk):
+    movimentacao = get_object_or_404(MovimentacaoEquipamento, pk=movimentacao_pk, ticket_id=pk)
+    try:
+        remover_movimentacao_pendente(movimentacao)
+        messages.success(request, "Movimentação removida da lista de pendentes.")
+    except ValueError as exc:
+        messages.error(request, str(exc))
+    return redirect("tickets:detalhe_ticket", pk=pk)
+
+
+@tecnico_required
 def consultar_equipamento_view(request):
     patrimonio = request.GET.get("patrimonio", "").strip()
     try:
@@ -803,6 +918,8 @@ def consultar_equipamento_view(request):
 
 @acesso_equipamentos_required
 def listar_equipamentos_view(request):
+    liberar_resguardos_vencidos()
+
     if request.user.is_staff:
         equipamentos = ItemConfiguracao.objects.select_related("setor")
     else:
@@ -894,11 +1011,70 @@ def listar_artigos_view(request):
     if categoria_id:
         artigos = artigos.filter(categoria_id=categoria_id)
 
+    grupos = {}
+    for artigo in artigos.order_by("categoria__grupo", "-atualizado_em"):
+        rotulo_grupo = artigo.categoria.get_grupo_display() if artigo.categoria else "Sem categoria"
+        grupos.setdefault(rotulo_grupo, []).append(artigo)
+
     return render(request, "tickets/listar_artigos.html", {
-        "artigos": artigos,
+        "grupos": grupos,
         "busca": busca,
         "categorias": Categoria.objects.order_by("grupo", "nome"),
         "categoria_selecionada": categoria_id,
+    })
+
+
+@tecnico_required
+def listar_respostas_rapidas_view(request):
+    respostas = RespostaRapida.objects.prefetch_related("edicoes__autor")
+
+    busca = request.GET.get("busca", "").strip()
+    if busca:
+        respostas = respostas.filter(Q(titulo__icontains=busca) | Q(texto__icontains=busca))
+
+    grupos = {}
+    for resposta in respostas:
+        edicoes = list(resposta.edicoes.all())
+        resposta.ultima_edicao = edicoes[0] if edicoes else None
+        rotulo_grupo = resposta.get_grupo_display() if resposta.grupo else "Sem grupo"
+        grupos.setdefault(rotulo_grupo, []).append(resposta)
+
+    return render(request, "tickets/listar_respostas_rapidas.html", {
+        "grupos": grupos,
+        "busca": busca,
+    })
+
+
+@tecnico_required
+def criar_resposta_rapida_view(request):
+    if request.method == "POST":
+        form = RespostaRapidaForm(request.POST)
+        if form.is_valid():
+            resposta = form.save()
+            RespostaRapidaEdicao.objects.create(resposta=resposta, autor=request.user)
+            messages.success(request, f'Modelo "{resposta.titulo}" criado.')
+            return redirect("tickets:listar_respostas_rapidas")
+    else:
+        form = RespostaRapidaForm()
+
+    return render(request, "tickets/form_resposta_rapida.html", {"form": form, "modo": "criar"})
+
+
+@tecnico_required
+def editar_resposta_rapida_view(request, pk):
+    resposta = get_object_or_404(RespostaRapida, pk=pk)
+    if request.method == "POST":
+        form = RespostaRapidaForm(request.POST, instance=resposta)
+        if form.is_valid():
+            form.save()
+            RespostaRapidaEdicao.objects.create(resposta=resposta, autor=request.user)
+            messages.success(request, f'Modelo "{resposta.titulo}" atualizado.')
+            return redirect("tickets:listar_respostas_rapidas")
+    else:
+        form = RespostaRapidaForm(instance=resposta)
+
+    return render(request, "tickets/form_resposta_rapida.html", {
+        "form": form, "modo": "editar", "resposta": resposta,
     })
 
 
