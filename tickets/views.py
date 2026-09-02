@@ -34,8 +34,10 @@ from .models import (
     ItemConfiguracao,
     MovimentacaoEquipamento,
     Notificacao,
+    PausaSLA,
     RespostaRapida,
     RespostaRapidaEdicao,
+    SolicitacaoTransferencia,
     Setor,
     Ticket,
 )
@@ -45,6 +47,8 @@ from .services.classificacao import (
     confirmar_classificacao_final,
     escalar_ticket,
     niveis_acima,
+    responder_solicitacao_transferencia,
+    solicitar_transferencia,
 )
 from .services.desvio import classificar_desvio
 from .services.equipamento import (
@@ -58,7 +62,8 @@ from .services.equipamento import (
 )
 from .services.notificacoes import marcar_como_lida, marcar_todas_como_lidas, notificar
 from .services.parametros import ParametroNaoConfigurado
-from .services.sla import fechar_ticket
+from .services.pausa import pausar_ticket, retomar_ticket
+from .services.sla import fechar_ticket, percentual_sla_consumido, prazo_ajustado
 
 def _tem_acesso_operacional(user):
     """Acesso operacional pleno ao sistema — fila, histórico, base de conhecimento,
@@ -222,9 +227,16 @@ def notificacoes_novas_view(request):
 @login_required
 @require_POST
 def marcar_notificacao_lida_view(request, pk):
-    notificacao = get_object_or_404(Notificacao, pk=pk, destinatario=request.user)
+    notificacao = get_object_or_404(
+        Notificacao.objects.select_related("ticket"), pk=pk, destinatario=request.user
+    )
     marcar_como_lida(notificacao)
-    return redirect("tickets:meu_ticket_detalhe", pk=notificacao.ticket_id)
+    # Notificações de escalonamento/transferência vão pro técnico, não pro
+    # solicitante do chamado — "meu_ticket_detalhe" só existe pra quem abriu
+    # o chamado, então o destino depende de quem é o destinatário.
+    if notificacao.ticket.solicitante_id == request.user.id:
+        return redirect("tickets:meu_ticket_detalhe", pk=notificacao.ticket_id)
+    return redirect("tickets:detalhe_ticket", pk=notificacao.ticket_id)
 
 
 @login_required
@@ -301,6 +313,7 @@ def _filtrar_fila_tickets(request):
         Ticket.objects
         .exclude(status=Ticket.Status.FECHADO)
         .select_related("categoria_sugerida", "categoria_ia", "categoria_final", "setor", "tecnico_responsavel")
+        .prefetch_related("pausas_sla")
     )
 
     setor_id = request.GET.get("setor", "").strip()
@@ -314,7 +327,7 @@ def _filtrar_fila_tickets(request):
 
     if setor_id:
         tickets_qs = tickets_qs.filter(setor_id=setor_id)
-    if status in (Ticket.Status.ABERTO, Ticket.Status.EM_ATENDIMENTO):
+    if status in (Ticket.Status.ABERTO, Ticket.Status.EM_ATENDIMENTO, Ticket.Status.PAUSADO):
         tickets_qs = tickets_qs.filter(status=status)
     if tipo in (Categoria.Tipo.INCIDENTE, Categoria.Tipo.REQUISICAO):
         tickets_qs = tickets_qs.filter(
@@ -334,14 +347,27 @@ def _filtrar_fila_tickets(request):
     if atribuidos_a_mim:
         tickets_qs = tickets_qs.filter(tecnico_responsavel=request.user)
 
-    # Alternância "Todos" / "Meus chamados": preserva os outros filtros já
-    # aplicados (setor, status etc.), só troca o atribuidos_a_mim — usado
-    # pelo toggle no topo da fila, que navega direto sem passar pelo
-    # formulário de filtros.
+    # Alternância "Todos" / "Meus chamados" / "Meu nível": as três são
+    # mutuamente exclusivas (um clique numa desliga as outras) — preservam
+    # os outros filtros já aplicados (setor, status etc.), só mexem em
+    # atribuidos_a_mim/nivel. Usado pelo toggle no topo da fila, que navega
+    # direto sem passar pelo formulário de filtros.
+    perfil_tecnico = getattr(request.user, "perfil_tecnico", None)
+    meu_nivel = perfil_tecnico.nivel_atendimento if perfil_tecnico else None
+    filtrando_meu_nivel = bool(meu_nivel) and nivel == meu_nivel
+
     params_todos = request.GET.copy()
     params_todos.pop("atribuidos_a_mim", None)
+    params_todos.pop("nivel", None)
+
     params_meus = request.GET.copy()
     params_meus["atribuidos_a_mim"] = "on"
+    params_meus.pop("nivel", None)
+
+    params_meu_nivel = request.GET.copy()
+    params_meu_nivel.pop("atribuidos_a_mim", None)
+    if meu_nivel:
+        params_meu_nivel["nivel"] = meu_nivel
 
     filtros = {
         "setor_selecionado": setor_id,
@@ -354,9 +380,42 @@ def _filtrar_fila_tickets(request):
         "atribuidos_a_mim": atribuidos_a_mim,
         "querystring_todos": params_todos.urlencode(),
         "querystring_meus": params_meus.urlencode(),
-        "algum_filtro": bool(setor_id or status or tipo or nivel or busca or data_de or data_ate),
+        "meu_nivel": meu_nivel,
+        "filtrando_meu_nivel": filtrando_meu_nivel,
+        "querystring_meu_nivel": params_meu_nivel.urlencode(),
+        # nivel fica de fora daqui pelo mesmo motivo de atribuidos_a_mim: tem
+        # atalho próprio fora do painel ("Meu nível"), não deve abrir o
+        # painel de filtros avançados sozinho.
+        "algum_filtro": bool(setor_id or status or tipo or busca or data_de or data_ate),
     }
     return tickets_qs, filtros
+
+
+def _tempo_restante_texto(prazo, agora):
+    """String curta e legível pro tempo restante até o prazo do SLA — usada
+    na fila no lugar da data/hora exata, junto da barra de progresso."""
+    if prazo <= agora:
+        return "Atrasado"
+    restante = prazo - agora
+    if prazo.date() == agora.date():
+        horas = int(restante.total_seconds() // 3600)
+        if horas >= 1:
+            return f"Faltam {horas}h"
+        minutos = max(1, int(restante.total_seconds() // 60))
+        return f"Faltam {minutos}min"
+    if prazo.date() == (agora + timedelta(days=1)).date():
+        return "Vence amanhã"
+    return f"Vence em {(prazo.date() - agora.date()).days} dias"
+
+
+def _nivel_sla(percentual_consumido, prazo_estourado):
+    """Classifica o quanto do SLA já foi consumido em 3 faixas — usada tanto
+    na cor do texto/barra de progresso quanto na borda de alerta da linha."""
+    if prazo_estourado or percentual_consumido >= 80:
+        return "sla-vermelho"
+    if percentual_consumido >= 50:
+        return "sla-amarelo"
+    return "sla-verde"
 
 
 @tecnico_required
@@ -367,10 +426,21 @@ def fila_tickets_view(request):
     agora = timezone.now()
     for ticket in tickets:
         categoria_referencia = ticket.categoria_final or ticket.categoria_sugerida
-        ticket.prazo = ticket.data_abertura + timedelta(hours=float(categoria_referencia.sla_horas))
+        ticket.tipo_calculado = categoria_referencia.tipo
+        ticket.pausa_atual = next(
+            (p for p in ticket.pausas_sla.all() if p.finalizada_em is None), None
+        )
+
+        ticket.prazo = prazo_ajustado(ticket, referencia=agora)
         ticket.prazo_estourado = ticket.prazo < agora
         ticket.prazo_proximo = not ticket.prazo_estourado and (ticket.prazo - agora) <= timedelta(hours=1)
-        ticket.tipo_calculado = categoria_referencia.tipo
+
+        ticket.percentual_sla_consumido = percentual_sla_consumido(ticket, referencia=agora)
+        if ticket.status == Ticket.Status.PAUSADO:
+            ticket.tempo_restante_texto = "Pausado"
+        else:
+            ticket.tempo_restante_texto = _tempo_restante_texto(ticket.prazo, agora)
+        ticket.sla_nivel = _nivel_sla(ticket.percentual_sla_consumido, ticket.prazo_estourado)
 
     # "Abertos" e "Em atendimento" são estado atual — não fazem sentido presos
     # a uma janela de tempo (um chamado aberto há uma semana ainda está
@@ -378,6 +448,7 @@ def fila_tickets_view(request):
     contagens = {
         "aberto": Ticket.objects.filter(status=Ticket.Status.ABERTO).count(),
         "em_atendimento": Ticket.objects.filter(status=Ticket.Status.EM_ATENDIMENTO).count(),
+        "pausado": Ticket.objects.filter(status=Ticket.Status.PAUSADO).count(),
     }
 
     return render(request, "tickets/fila_tickets.html", {
@@ -423,15 +494,17 @@ def dashboard_view(request):
     estourados = 0
     tickets_com_prazo = []
     for ticket in tickets_ativos:
-        categoria_referencia = ticket.categoria_final or ticket.categoria_sugerida
-        prazo = ticket.data_abertura + timedelta(hours=float(categoria_referencia.sla_horas))
+        prazo = prazo_ajustado(ticket, referencia=agora)
         restante = prazo - agora
-        if restante < timedelta(0):
-            estourados += 1
-        elif restante <= timedelta(minutes=30):
-            criticos_30min += 1
-        elif restante <= timedelta(hours=1):
-            criticos_60min += 1
+        # Chamado pausado não conta como crítico/estourado — o relógio do
+        # SLA dele está parado, não faz sentido soar alarme por isso.
+        if ticket.status != Ticket.Status.PAUSADO:
+            if restante < timedelta(0):
+                estourados += 1
+            elif restante <= timedelta(minutes=30):
+                criticos_30min += 1
+            elif restante <= timedelta(hours=1):
+                criticos_60min += 1
         tickets_com_prazo.append((restante, ticket, prazo))
 
     alertas = {
@@ -504,6 +577,7 @@ def dashboard_view(request):
         "mtta_horas": round(mtta, 1) if mtta is not None else None,
         "mttr_formatado": _formatar_horas(mttr),
         "mtta_formatado": _formatar_horas(mtta),
+        "pausados": Ticket.objects.filter(status=Ticket.Status.PAUSADO).count(),
     }
 
     # Volume diário dos últimos 7 dias: uma consulta agregada por campo de
@@ -673,6 +747,10 @@ def _obter_ticket_detalhe(pk):
 def _contexto_detalhe_ticket(ticket, *, patrimonio_saida_valor=None, patrimonio_entrada_valor=None):
     categoria_inicial = ticket.categoria_final or ticket.categoria_ia or ticket.categoria_sugerida
     form = ConfirmarClassificacaoForm(initial={"categoria_final": categoria_inicial})
+    if ticket.categoria_final:
+        # Já confirmado — trava o campo (e o botão, no template) pra não dar
+        # a entender que dá pra mudar a categoria sem reabrir o chamado.
+        form.fields["categoria_final"].disabled = True
     comentarios = list(ticket.comentarios.select_related("autor"))
     for comentario in comentarios:
         comentario.badge_classe, comentario.badge_emoji, comentario.badge_label = {
@@ -706,6 +784,12 @@ def _contexto_detalhe_ticket(ticket, *, patrimonio_saida_valor=None, patrimonio_
         "tipo_calculado": (ticket.categoria_final or ticket.categoria_sugerida).tipo,
         "niveis_disponiveis_escalonamento": niveis_acima(ticket.nivel_atual),
         "escalonamentos": list(ticket.escalonamentos.select_related("autor")),
+        "solicitacao_pendente": ticket.solicitacoes_transferencia.filter(
+            status=SolicitacaoTransferencia.Status.PENDENTE
+        ).select_related("solicitante").first(),
+        "pausa_atual": ticket.pausas_sla.filter(finalizada_em__isnull=True).select_related("autor").first(),
+        "historico_pausas": list(ticket.pausas_sla.select_related("autor")),
+        "motivos_pausa": PausaSLA.Motivo.choices,
         "form": form,
         "comentarios": comentarios,
         "comentario_form": comentario_form,
@@ -791,6 +875,35 @@ def escalar_ticket_view(request, pk):
 
 @tecnico_required
 @require_POST
+def pausar_ticket_view(request, pk):
+    ticket = get_object_or_404(Ticket, pk=pk)
+    motivo = request.POST.get("motivo", "").strip()
+    observacao = request.POST.get("observacao", "").strip()
+    if motivo not in PausaSLA.Motivo.values:
+        messages.error(request, "Selecione um motivo válido para a pausa.")
+        return redirect("tickets:detalhe_ticket", pk=pk)
+    try:
+        pausa = pausar_ticket(ticket, autor=request.user, motivo=motivo, observacao=observacao)
+        messages.success(request, f"Chamado {ticket.codigo} pausado: {pausa.get_motivo_display()}.")
+    except ValueError as exc:
+        messages.error(request, str(exc))
+    return redirect("tickets:detalhe_ticket", pk=pk)
+
+
+@tecnico_required
+@require_POST
+def retomar_ticket_view(request, pk):
+    ticket = get_object_or_404(Ticket, pk=pk)
+    try:
+        retomar_ticket(ticket, autor=request.user)
+        messages.success(request, f"Chamado {ticket.codigo} retomado.")
+    except ValueError as exc:
+        messages.error(request, str(exc))
+    return redirect("tickets:detalhe_ticket", pk=pk)
+
+
+@tecnico_required
+@require_POST
 def atribuir_tecnico_view(request, pk):
     ticket = get_object_or_404(Ticket, pk=pk)
     tecnico_id = request.POST.get("tecnico_id", "").strip()
@@ -801,6 +914,41 @@ def atribuir_tecnico_view(request, pk):
     tecnico = get_object_or_404(get_user_model(), pk=tecnico_id, is_staff=True, is_active=True)
     atribuir_tecnico(ticket, tecnico)
     messages.success(request, f"Chamado {ticket.codigo} atribuído a {tecnico.get_full_name() or tecnico.username}.")
+    return redirect("tickets:detalhe_ticket", pk=pk)
+
+
+@tecnico_required
+@require_POST
+def solicitar_transferencia_view(request, pk):
+    ticket = get_object_or_404(Ticket, pk=pk)
+    try:
+        solicitar_transferencia(ticket, solicitante=request.user)
+        messages.success(request, f"Solicitação enviada. {ticket.tecnico_responsavel} vai decidir se transfere o chamado.")
+    except ValueError as exc:
+        messages.error(request, str(exc))
+    return redirect("tickets:detalhe_ticket", pk=pk)
+
+
+@tecnico_required
+@require_POST
+def responder_transferencia_view(request, pk, solicitacao_pk):
+    solicitacao = get_object_or_404(SolicitacaoTransferencia, pk=solicitacao_pk, ticket_id=pk)
+    if solicitacao.tecnico_atual_id != request.user.id:
+        raise PermissionDenied
+
+    acao = request.POST.get("acao", "").strip()
+    if acao not in ("aceitar", "recusar"):
+        messages.error(request, "Ação inválida.")
+        return redirect("tickets:detalhe_ticket", pk=pk)
+
+    try:
+        responder_solicitacao_transferencia(solicitacao, aceitar=(acao == "aceitar"))
+        if acao == "aceitar":
+            messages.success(request, f"Chamado {solicitacao.ticket.codigo} transferido para {solicitacao.solicitante}.")
+        else:
+            messages.success(request, "Solicitação de transferência recusada.")
+    except ValueError as exc:
+        messages.error(request, str(exc))
     return redirect("tickets:detalhe_ticket", pk=pk)
 
 

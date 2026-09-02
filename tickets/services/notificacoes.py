@@ -37,6 +37,14 @@ def notificar_tecnicos_nivel(ticket: Ticket, nivel: str, mensagem: str, *, exclu
     ]
 
 
+def notificar_usuario(destinatario, ticket: Ticket, tipo: str, mensagem: str) -> Notificacao:
+    """Avisa um usuário específico — diferente de notificar() (sempre pro
+    solicitante do ticket) e notificar_tecnicos_nivel() (todos de um
+    nível), usado quando o destinatário é uma pessoa em particular (ex:
+    quem pediu ou quem precisa responder uma solicitação de transferência)."""
+    return Notificacao.objects.create(destinatario=destinatario, ticket=ticket, tipo=tipo, mensagem=mensagem)
+
+
 def marcar_como_lida(notificacao: Notificacao) -> Notificacao:
     if not notificacao.lida:
         notificacao.lida = True

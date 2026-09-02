@@ -19,6 +19,47 @@
 }
 .ticket-table td { vertical-align: middle; }
 
+/* Feedback visual de SLA — três estados reaproveitados em três lugares:
+   o texto de "tempo restante", o preenchimento da barra de progresso e a
+   semaforização da linha inteira. Classes de exemplo: troque as variáveis
+   do Bootstrap (--bs-success/warning/danger) se quiser outra paleta. */
+.sla-tempo-restante {
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.sla-tempo-restante.sla-verde { color: var(--bs-success-text-emphasis); }
+.sla-tempo-restante.sla-amarelo { color: var(--bs-warning-text-emphasis); }
+.sla-tempo-restante.sla-vermelho { color: var(--bs-danger-text-emphasis); }
+
+.sla-progresso {
+    width: 100%;
+    min-width: 90px;
+    height: 6px;
+    margin-top: 0.35rem;
+    border-radius: 3px;
+    background: var(--card-border);
+    border: 1px solid var(--card-border);
+    overflow: hidden;
+}
+.sla-progresso-barra {
+    height: 100%;
+    min-width: 6%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+.sla-progresso-barra.sla-verde { background: var(--bs-success); }
+.sla-progresso-barra.sla-amarelo { background: var(--bs-warning); }
+.sla-progresso-barra.sla-vermelho { background: var(--bs-danger); }
+
+/* A borda de alerta vai no primeiro <td> da linha, não no <tr> — border e
+   box-shadow aplicados direto num <tr> não renderizam de forma confiável
+   entre navegadores dentro de uma tabela. */
+.ticket-table tbody tr td:first-child { border-left: 3px solid transparent; }
+.ticket-table tbody tr.sla-verde td:first-child { border-left-color: var(--bs-success); }
+.ticket-table tbody tr.sla-amarelo td:first-child { border-left-color: var(--bs-warning); }
+.ticket-table tbody tr.sla-vermelho td:first-child { border-left-color: var(--bs-danger); }
+
 #bannerNovosChamados {
     position: fixed;
     top: 1rem;

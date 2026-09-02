@@ -19,7 +19,7 @@
                             {% if tipo_calculado == 'incidente' %}Incidente{% else %}Requisição{% endif %}
                         </span>
                         <span class="badge bg-secondary">{{ ticket.get_nivel_atual_display }}</span>
-                        <span class="badge {% if ticket.status == 'aberto' %}bg-warning text-dark{% elif ticket.status == 'em_atendimento' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                        <span class="badge {% if ticket.status == 'aberto' %}bg-warning text-dark{% elif ticket.status == 'em_atendimento' %}bg-info text-dark{% elif ticket.status == 'pausado' %}bg-dark{% else %}bg-secondary{% endif %}">
                             {{ ticket.get_status_display }}
                         </span>
                     </div>
@@ -61,35 +61,121 @@
             </div>
         </div>
 
-        <!-- Atribuição do técnico -->
-        <div class="card shadow-sm mb-4">
-            <div class="card-body">
-                <h2 class="h6 mb-3">Atribuição do técnico</h2>
-
-                <div class="d-flex flex-wrap align-items-end justify-content-between gap-3">
-                    <div>
-                        <div class="kv-label mb-1">Responsável atual</div>
-                        <p class="kv-value mb-0">
-                            {% if ticket.tecnico_responsavel %}
-                                {{ ticket.tecnico_responsavel.get_full_name|default:ticket.tecnico_responsavel.username }}
-                            {% else %}
-                                <span class="text-muted">Nenhum técnico atribuído ainda</span>
+        <!-- Resumo compacto: Atribuição / Escalonamento / Pausa viram modais -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body d-flex justify-content-between align-items-center gap-2">
+                        <div>
+                            <div class="kv-label mb-1">Técnico responsável</div>
+                            <p class="kv-value mb-0">
+                                {% if ticket.tecnico_responsavel %}
+                                    {{ ticket.tecnico_responsavel.get_full_name|default:ticket.tecnico_responsavel.username }}
+                                {% else %}
+                                    <span class="text-muted">Não atribuído</span>
+                                {% endif %}
+                            </p>
+                            {% if solicitacao_pendente %}
+                                <div class="small text-muted">Transferência pendente</div>
                             {% endif %}
-                        </p>
+                        </div>
+                        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAtribuicao">
+                            Gerenciar
+                        </button>
                     </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body d-flex justify-content-between align-items-center gap-2">
+                        <div>
+                            <div class="kv-label mb-1">Nível de atendimento</div>
+                            <p class="kv-value mb-0">{{ ticket.get_nivel_atual_display }}</p>
+                        </div>
+                        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalEscalonamento">
+                            Gerenciar
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body d-flex justify-content-between align-items-center gap-2">
+                        <div>
+                            <div class="kv-label mb-1">SLA</div>
+                            <p class="kv-value mb-0">
+                                {% if pausa_atual %}Pausado{% else %}Em atendimento{% endif %}
+                            </p>
+                            {% if pausa_atual %}
+                                <div class="small text-muted">{{ pausa_atual.get_motivo_display }}</div>
+                            {% endif %}
+                        </div>
+                        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalPausa">
+                            Gerenciar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-                    <div class="d-flex flex-wrap align-items-end gap-2">
-                        {% if ticket.tecnico_responsavel_id != request.user.id %}
-                        <form method="post" action="{% url 'tickets:atribuir_tecnico' ticket.pk %}" class="mb-0">
-                            {% csrf_token %}
-                            <input type="hidden" name="tecnico_id" value="{{ request.user.pk }}">
-                            <button type="submit" class="btn btn-outline-primary btn-sm">Assumir chamado</button>
-                        </form>
+        <!-- Modal: Atribuição do técnico -->
+        <div class="modal fade" id="modalAtribuicao" tabindex="-1" aria-labelledby="modalAtribuicaoLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalAtribuicaoLabel">Atribuição do técnico</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                            <div>
+                                <div class="kv-label mb-1">Responsável atual</div>
+                                <p class="kv-value mb-0">
+                                    {% if ticket.tecnico_responsavel %}
+                                        {{ ticket.tecnico_responsavel.get_full_name|default:ticket.tecnico_responsavel.username }}
+                                    {% else %}
+                                        <span class="text-muted">Nenhum técnico atribuído ainda</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                            {% if not ticket.tecnico_responsavel %}
+                                <form method="post" action="{% url 'tickets:atribuir_tecnico' ticket.pk %}" class="mb-0">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="tecnico_id" value="{{ request.user.pk }}">
+                                    <button type="submit" class="btn btn-outline-primary btn-sm">Assumir chamado</button>
+                                </form>
+                            {% elif ticket.tecnico_responsavel_id != request.user.id and solicitacao_pendente %}
+                                <span class="small text-muted text-end">Solicitação de transferência pendente</span>
+                            {% elif ticket.tecnico_responsavel_id != request.user.id %}
+                                <form method="post" action="{% url 'tickets:solicitar_transferencia' ticket.pk %}" class="mb-0">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-outline-primary btn-sm">Solicitar chamado</button>
+                                </form>
+                            {% endif %}
+                        </div>
+
+                        {% if ticket.tecnico_responsavel_id == request.user.id and solicitacao_pendente %}
+                        <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+                            <span class="small text-muted">
+                                {{ solicitacao_pendente.solicitante.get_full_name|default:solicitacao_pendente.solicitante.username }}
+                                solicitou este chamado
+                            </span>
+                            <form method="post" action="{% url 'tickets:responder_transferencia' ticket.pk solicitacao_pendente.pk %}" class="mb-0">
+                                {% csrf_token %}
+                                <input type="hidden" name="acao" value="aceitar">
+                                <button type="submit" class="btn btn-outline-success btn-sm">Transferir</button>
+                            </form>
+                            <form method="post" action="{% url 'tickets:responder_transferencia' ticket.pk solicitacao_pendente.pk %}" class="mb-0">
+                                {% csrf_token %}
+                                <input type="hidden" name="acao" value="recusar">
+                                <button type="submit" class="btn btn-outline-danger btn-sm">Recusar</button>
+                            </form>
+                        </div>
                         {% endif %}
 
-                        <form method="post" action="{% url 'tickets:atribuir_tecnico' ticket.pk %}" novalidate class="d-flex align-items-end gap-2 mb-0">
+                        <form method="post" action="{% url 'tickets:atribuir_tecnico' ticket.pk %}" novalidate class="d-flex align-items-end gap-2 mt-3 mb-0">
                             {% csrf_token %}
-                            <div style="min-width: 280px;">
+                            <div class="flex-grow-1">
                                 <label for="tecnico_id" class="form-label small mb-1">
                                     {% if ticket.tecnico_responsavel %}Reatribuir para{% else %}Atribuir para{% endif %}
                                 </label>
@@ -111,65 +197,154 @@
             </div>
         </div>
 
-        <!-- Escalonamento -->
-        <div class="card shadow-sm mb-4">
-            <div class="card-body">
-                <h2 class="h6 mb-3">Escalonamento</h2>
-
-                <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
-                    <div>
-                        <div class="kv-label mb-1">Nível atual</div>
-                        <p class="kv-value mb-0">{{ ticket.get_nivel_atual_display }}</p>
+        <!-- Modal: Escalonamento -->
+        <div class="modal fade" id="modalEscalonamento" tabindex="-1" aria-labelledby="modalEscalonamentoLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalEscalonamentoLabel">Escalonamento</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
                     </div>
+                    <div class="modal-body">
+                        <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
+                            <div>
+                                <div class="kv-label mb-1">Nível atual</div>
+                                <p class="kv-value mb-0">{{ ticket.get_nivel_atual_display }}</p>
+                            </div>
 
-                    {% if niveis_disponiveis_escalonamento %}
-                    <form method="post" action="{% url 'tickets:escalar_ticket' ticket.pk %}" novalidate class="d-flex flex-wrap align-items-end gap-2 mb-0">
-                        {% csrf_token %}
-                        <div>
-                            <label for="novo_nivel" class="form-label small mb-1">Escalar para</label>
-                            <select name="novo_nivel" id="novo_nivel" class="form-select form-select-sm">
-                                {% for nivel in niveis_disponiveis_escalonamento %}
-                                    <option value="{{ nivel }}">{{ nivel|upper }}</option>
+                            {% if niveis_disponiveis_escalonamento %}
+                            <form method="post" action="{% url 'tickets:escalar_ticket' ticket.pk %}" novalidate class="d-flex flex-wrap align-items-end gap-2 mb-0">
+                                {% csrf_token %}
+                                <div>
+                                    <label for="novo_nivel" class="form-label small mb-1">Escalar para</label>
+                                    <select name="novo_nivel" id="novo_nivel" class="form-select form-select-sm">
+                                        {% for nivel in niveis_disponiveis_escalonamento %}
+                                            <option value="{{ nivel }}">{{ nivel|upper }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div style="min-width: 240px;">
+                                    <label for="justificativa" class="form-label small mb-1">Justificativa (opcional)</label>
+                                    <input type="text" name="justificativa" id="justificativa" class="form-control form-control-sm">
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-sm">Escalar</button>
+                            </form>
+                            {% else %}
+                                <span class="text-muted small">Já está no nível máximo de atendimento.</span>
+                            {% endif %}
+                        </div>
+
+                        {% if escalonamentos %}
+                        <div class="kv-label mb-1">Histórico de escalonamento</div>
+                        <div class="timeline-scroll">
+                            <ul class="timeline">
+                                {% for escalonamento in escalonamentos %}
+                                <li class="timeline-item">
+                                    <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
+                                        <span class="badge bg-secondary">{{ escalonamento.nivel_anterior|upper }} → {{ escalonamento.nivel_novo|upper }}</span>
+                                        <span class="small text-muted">
+                                            {{ escalonamento.autor.get_full_name|default:escalonamento.autor.username|default:"usuário removido" }}
+                                            — {{ escalonamento.criado_em|date:"d/m/Y H:i" }}
+                                        </span>
+                                    </div>
+                                    {% if escalonamento.justificativa %}
+                                        <div class="small">{{ escalonamento.justificativa }}</div>
+                                    {% endif %}
+                                </li>
                                 {% endfor %}
-                            </select>
+                            </ul>
                         </div>
-                        <div style="min-width: 240px;">
-                            <label for="justificativa" class="form-label small mb-1">Justificativa (opcional)</label>
-                            <input type="text" name="justificativa" id="justificativa" class="form-control form-control-sm">
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-sm">Escalar</button>
-                    </form>
-                    {% else %}
-                        <span class="text-muted small">Já está no nível máximo de atendimento.</span>
-                    {% endif %}
-                </div>
-
-                {% if escalonamentos %}
-                <div class="kv-label mb-1">Histórico de escalonamento</div>
-                <ul class="timeline">
-                    {% for escalonamento in escalonamentos %}
-                    <li class="timeline-item">
-                        <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
-                            <span class="badge bg-secondary">{{ escalonamento.nivel_anterior|upper }} → {{ escalonamento.nivel_novo|upper }}</span>
-                            <span class="small text-muted">
-                                {{ escalonamento.autor.get_full_name|default:escalonamento.autor.username|default:"usuário removido" }}
-                                — {{ escalonamento.criado_em|date:"d/m/Y H:i" }}
-                            </span>
-                        </div>
-                        {% if escalonamento.justificativa %}
-                            <div class="small">{{ escalonamento.justificativa }}</div>
                         {% endif %}
-                    </li>
-                    {% endfor %}
-                </ul>
-                {% endif %}
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Classificação e equipamento -->
+        <!-- Modal: Pausa de SLA -->
+        <div class="modal fade" id="modalPausa" tabindex="-1" aria-labelledby="modalPausaLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalPausaLabel">Pausa de SLA</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
+                            <div>
+                                <div class="kv-label mb-1">Situação atual</div>
+                                {% if pausa_atual %}
+                                    <p class="kv-value mb-0">
+                                        Pausado — {{ pausa_atual.get_motivo_display }}
+                                        desde {{ pausa_atual.iniciada_em|date:"d/m/Y H:i" }}
+                                    </p>
+                                    {% if pausa_atual.observacao %}
+                                        <div class="small text-muted">{{ pausa_atual.observacao }}</div>
+                                    {% endif %}
+                                {% else %}
+                                    <p class="kv-value mb-0">Em atendimento normal</p>
+                                {% endif %}
+                            </div>
+
+                            {% if pausa_atual %}
+                                <form method="post" action="{% url 'tickets:retomar_ticket' ticket.pk %}" class="mb-0">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-success btn-sm">Retomar atendimento</button>
+                                </form>
+                            {% elif ticket.status != 'fechado' %}
+                                <form method="post" action="{% url 'tickets:pausar_ticket' ticket.pk %}" novalidate class="d-flex flex-wrap align-items-end gap-2 mb-0">
+                                    {% csrf_token %}
+                                    <div style="width: 220px;">
+                                        <label for="motivo" class="form-label small mb-1">Pausar por</label>
+                                        <select name="motivo" id="motivo" class="form-select form-select-sm">
+                                            {% for valor, rotulo in motivos_pausa %}
+                                                <option value="{{ valor }}">{{ rotulo }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div style="min-width: 240px;">
+                                        <label for="observacao" class="form-label small mb-1">Observação (opcional)</label>
+                                        <input type="text" name="observacao" id="observacao" class="form-control form-control-sm">
+                                    </div>
+                                    <button type="submit" class="btn btn-danger btn-sm">Pausar chamado</button>
+                                </form>
+                            {% endif %}
+                        </div>
+
+                        {% if historico_pausas %}
+                        <div class="kv-label mb-1">Histórico de pausas</div>
+                        <div class="timeline-scroll">
+                            <ul class="timeline">
+                                {% for pausa in historico_pausas %}
+                                <li class="timeline-item">
+                                    <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
+                                        <span class="badge bg-secondary">{{ pausa.get_motivo_display }}</span>
+                                        <span class="small text-muted">
+                                            {{ pausa.autor.get_full_name|default:pausa.autor.username|default:"usuário removido" }}
+                                            — {{ pausa.iniciada_em|date:"d/m/Y H:i" }}
+                                            {% if pausa.finalizada_em %}
+                                                até {{ pausa.finalizada_em|date:"d/m/Y H:i" }}
+                                            {% else %}
+                                                (em andamento)
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                    {% if pausa.observacao %}
+                                        <div class="small">{{ pausa.observacao }}</div>
+                                    {% endif %}
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Classificação -->
         <div class="card shadow-sm mb-4">
             <div class="card-body">
-                <h2 class="h6 mb-3">Classificação e equipamento</h2>
+                <h2 class="h6 mb-3">Classificação</h2>
 
                 <div class="kv-label mb-2">Dupla checagem de classificação</div>
                 <div class="two-col-grid mb-3">
@@ -188,16 +363,27 @@
                     <label for="{{ form.categoria_final.id_for_label }}" class="form-label">
                         {{ form.categoria_final.label }}
                     </label>
-                    <div class="input-group">
-                        {{ form.categoria_final }}
-                        <button type="submit" class="btn btn-primary">Confirmar classificação</button>
+                    <div class="d-flex align-items-end gap-2">
+                        <div style="width: 440px;">
+                            {{ form.categoria_final }}
+                        </div>
+                        <button
+                            type="submit" class="btn {% if ticket.categoria_final %}btn-outline-secondary{% else %}btn-primary{% endif %}"
+                            {% if ticket.categoria_final %}disabled{% endif %}>
+                            {% if ticket.categoria_final %}Chamado classificado{% else %}Confirmar classificação{% endif %}
+                        </button>
                     </div>
                     {% for error in form.categoria_final.errors %}
                         <div class="text-danger small">{{ error }}</div>
                     {% endfor %}
                 </form>
+            </div>
+        </div>
 
-                <hr>
+        <!-- Equipamento -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <h2 class="h6 mb-3">Equipamento</h2>
 
                 <div class="kv-label mb-2">Equipamento vinculado</div>
                 {% if ticket.item_configuracao %}

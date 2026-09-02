@@ -65,7 +65,7 @@
                                 <div class="fw-semibold">{{ ticket.codigo }} — {{ ticket.categoria_final|default:ticket.categoria_sugerida }}</div>
                                 <div class="small text-muted">{{ ticket.setor }} — aberto em {{ ticket.data_abertura|date:"d/m/Y H:i" }}</div>
                             </div>
-                            <span class="badge {% if ticket.status == 'aberto' %}bg-warning text-dark{% elif ticket.status == 'em_atendimento' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                            <span class="badge {% if ticket.status == 'aberto' %}bg-warning text-dark{% elif ticket.status == 'em_atendimento' %}bg-info text-dark{% elif ticket.status == 'pausado' %}bg-dark{% else %}bg-secondary{% endif %}">
                                 {{ ticket.get_status_display }}
                             </span>
                         </div>

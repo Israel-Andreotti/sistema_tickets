@@ -6,7 +6,7 @@ from django.urls import reverse
 
 from tickets.models import Categoria, ComentarioTicket, Notificacao, Setor, Ticket
 from tickets.services.classificacao import atribuir_tecnico, confirmar_classificacao_final
-from tickets.services.notificacoes import marcar_como_lida, marcar_todas_como_lidas, notificar
+from tickets.services.notificacoes import marcar_como_lida, marcar_todas_como_lidas, notificar, notificar_usuario
 from tickets.services.sla import fechar_ticket
 
 
@@ -256,3 +256,43 @@ class NotificacaoViewsDoSolicitanteTests(TestCase):
         self.client.post(reverse("tickets:marcar_todas_notificacoes_lidas"))
         resposta = self.client.get(reverse("tickets:notificacoes_novas"))
         self.assertEqual(resposta.json(), {"total_nao_lidas": 0})
+
+
+class NotificacaoViewsDoTecnicoTests(TestCase):
+    """Notificações de escalonamento/transferência vão pro técnico, não pro
+    solicitante do chamado — marcar como lida precisa mandar pra
+    detalhe_ticket (visão do técnico), não pra meu_ticket_detalhe (que só
+    existe pra quem abriu o chamado e daria 404 pro técnico)."""
+
+    def setUp(self):
+        self.tecnico = get_user_model().objects.create_user(
+            username="tecnico_teste_notif_views", is_staff=True, password="senha-teste-123",
+        )
+        self.categoria = Categoria.objects.create(
+            nome="Categoria teste notif views tecnico", grupo=Categoria.Grupo.SUPORTE,
+            peso_categoria=2, sla_horas=8,
+        )
+        self.setor = Setor.objects.create(nome="Setor teste notif views tecnico", peso_setor=3)
+        self.ticket = Ticket.objects.create(
+            categoria_sugerida=self.categoria,
+            codigo_tipo=self.categoria.tipo,
+            codigo_numero=Ticket.objects.count() + 1,
+            setor=self.setor,
+            descricao="Descrição teste",
+            solicitante=None,
+            solicitante_nome="Solicitante Teste",
+            solicitante_ramal="1234",
+            solicitante_sala="Sala 10",
+        )
+        self.notificacao = notificar_usuario(
+            self.tecnico, self.ticket, Notificacao.Tipo.TRANSFERENCIA, "Mensagem teste pro técnico",
+        )
+        self.client.login(username="tecnico_teste_notif_views", password="senha-teste-123")
+
+    def test_marcar_notificacao_lida_do_tecnico_redireciona_para_detalhe_ticket(self):
+        resposta = self.client.post(
+            reverse("tickets:marcar_notificacao_lida", args=[self.notificacao.pk])
+        )
+        self.notificacao.refresh_from_db()
+        self.assertTrue(self.notificacao.lida)
+        self.assertRedirects(resposta, reverse("tickets:detalhe_ticket", args=[self.ticket.pk]))

@@ -6,9 +6,19 @@ RN02 — a IA analisa a descrição e determina sua própria categoria (categori
 RN03 — o técnico vê as duas lado a lado e confirma/corrige a classificação final.
 RN04 — apenas categoria_final alimenta cálculo de SLA e prioridade.
 """
-from ..models import Categoria, EscalonamentoTicket, ItemConfiguracao, Notificacao, Setor, Ticket
+from django.utils import timezone
+
+from ..models import (
+    Categoria,
+    EscalonamentoTicket,
+    ItemConfiguracao,
+    Notificacao,
+    SolicitacaoTransferencia,
+    Setor,
+    Ticket,
+)
 from .codigo import proximo_numero_sequencial
-from .notificacoes import notificar, notificar_tecnicos_nivel
+from .notificacoes import notificar, notificar_tecnicos_nivel, notificar_usuario
 from .prioridade import calcular_prioridade
 
 _ORDEM_NIVEL = [
@@ -74,6 +84,52 @@ def atribuir_tecnico(ticket: Ticket, tecnico) -> Ticket:
             f"Seu chamado {ticket.codigo} entrou em atendimento.",
         )
     return ticket
+
+
+def solicitar_transferencia(ticket: Ticket, *, solicitante) -> SolicitacaoTransferencia:
+    """Pede pra assumir um chamado que já tem responsável — fica pendente
+    até o responsável atual aceitar ou recusar (ver
+    responder_solicitacao_transferencia). Chamado sem responsável não passa
+    por aqui — nesse caso é atribuição direta via atribuir_tecnico()."""
+    if ticket.tecnico_responsavel_id is None:
+        raise ValueError("Chamado sem responsável — atribua um técnico em vez de solicitar.")
+    if ticket.tecnico_responsavel_id == solicitante.pk:
+        raise ValueError("Você já é o responsável por este chamado.")
+    if ticket.solicitacoes_transferencia.filter(status=SolicitacaoTransferencia.Status.PENDENTE).exists():
+        raise ValueError("Já existe uma solicitação de transferência pendente para este chamado.")
+
+    solicitacao = SolicitacaoTransferencia.objects.create(
+        ticket=ticket, solicitante=solicitante, tecnico_atual=ticket.tecnico_responsavel,
+    )
+    notificar_usuario(
+        ticket.tecnico_responsavel, ticket, Notificacao.Tipo.TRANSFERENCIA,
+        f"{solicitante.get_full_name() or solicitante.username} solicitou assumir o chamado {ticket.codigo}.",
+    )
+    return solicitacao
+
+
+def responder_solicitacao_transferencia(solicitacao: SolicitacaoTransferencia, *, aceitar: bool) -> SolicitacaoTransferencia:
+    """Aceita (transfere de fato, via atribuir_tecnico) ou recusa um pedido
+    de transferência — nos dois casos avisa quem pediu do resultado."""
+    if solicitacao.status != SolicitacaoTransferencia.Status.PENDENTE:
+        raise ValueError("Essa solicitação já foi respondida.")
+
+    solicitacao.status = (
+        SolicitacaoTransferencia.Status.ACEITA if aceitar else SolicitacaoTransferencia.Status.RECUSADA
+    )
+    solicitacao.respondido_em = timezone.now()
+    solicitacao.save(update_fields=["status", "respondido_em"])
+
+    if aceitar:
+        atribuir_tecnico(solicitacao.ticket, solicitacao.solicitante)
+
+    nome_atual = solicitacao.tecnico_atual.get_full_name() or solicitacao.tecnico_atual.username
+    notificar_usuario(
+        solicitacao.solicitante, solicitacao.ticket, Notificacao.Tipo.TRANSFERENCIA,
+        f"Sua solicitação para assumir o chamado {solicitacao.ticket.codigo} foi "
+        f"{'aceita' if aceitar else 'recusada'} por {nome_atual}.",
+    )
+    return solicitacao
 
 
 def niveis_acima(nivel_atual: str) -> list[str]:

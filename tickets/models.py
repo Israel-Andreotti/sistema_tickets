@@ -184,6 +184,7 @@ class Ticket(models.Model):
     class Status(models.TextChoices):
         ABERTO = "aberto", "Aberto"
         EM_ATENDIMENTO = "em_atendimento", "Em atendimento"
+        PAUSADO = "pausado", "Pausado"
         FECHADO = "fechado", "Fechado"
 
     class Impacto(models.TextChoices):
@@ -381,6 +382,67 @@ class EscalonamentoTicket(models.Model):
         return f"Chamado #{self.ticket_id}: {self.nivel_anterior} → {self.nivel_novo}"
 
 
+class SolicitacaoTransferencia(models.Model):
+    """Pedido de um técnico pra assumir um chamado que já tem responsável —
+    fica pendente até quem é responsável hoje aceitar ou recusar. Diferente
+    de EscalonamentoTicket/RespostaRapidaEdicao (só log), este tem um ciclo
+    de vida real: pendente -> aceita/recusada."""
+
+    class Status(models.TextChoices):
+        PENDENTE = "pendente", "Pendente"
+        ACEITA = "aceita", "Aceita"
+        RECUSADA = "recusada", "Recusada"
+
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="solicitacoes_transferencia")
+    solicitante = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="transferencias_solicitadas"
+    )
+    tecnico_atual = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="transferencias_recebidas"
+    )
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDENTE)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    respondido_em = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Solicitação de transferência"
+        verbose_name_plural = "Solicitações de transferência"
+        ordering = ["-criado_em"]
+
+    def __str__(self):
+        return f"{self.solicitante} pediu #{self.ticket_id} ({self.get_status_display()})"
+
+
+class PausaSLA(models.Model):
+    """Período em que o SLA do chamado ficou pausado (esperando fornecedor,
+    peça, o próprio usuário etc.) — o tempo entre iniciada_em e
+    finalizada_em não conta pro SLA da equipe interna (ver services/sla.py:
+    prazo_ajustado, tempo_pausado_total)."""
+
+    class Motivo(models.TextChoices):
+        AGUARDANDO_FORNECEDOR = "aguardando_fornecedor", "Aguardando fornecedor"
+        AGUARDANDO_PECA = "aguardando_peca", "Aguardando peça/equipamento"
+        AGUARDANDO_USUARIO = "aguardando_usuario", "Aguardando retorno do usuário"
+        AGUARDANDO_APROVACAO = "aguardando_aprovacao", "Aguardando aprovação/autorização"
+        OUTRO = "outro", "Outro motivo"
+
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="pausas_sla")
+    autor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    motivo = models.CharField(max_length=25, choices=Motivo.choices)
+    observacao = models.TextField(blank=True)
+    iniciada_em = models.DateTimeField(auto_now_add=True)
+    finalizada_em = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Pausa de SLA"
+        verbose_name_plural = "Pausas de SLA"
+        ordering = ["-iniciada_em"]
+
+    def __str__(self):
+        status = "em aberto" if self.finalizada_em is None else "encerrada"
+        return f"Pausa do chamado #{self.ticket_id} ({self.get_motivo_display()}, {status})"
+
+
 class PerfilTecnico(models.Model):
     """Nível de atendimento do técnico (N1/N2/N3) — todo usuário com
     is_staff ganha um automaticamente (ver signals.py), nascendo em N1; o
@@ -414,6 +476,7 @@ class Notificacao(models.Model):
         MUDANCA_STATUS = "mudanca_status", "Mudança de status"
         NOVO_COMENTARIO = "novo_comentario", "Novo comentário"
         ESCALONAMENTO = "escalonamento", "Escalonamento"
+        TRANSFERENCIA = "transferencia", "Transferência de chamado"
 
     destinatario = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notificacoes"
@@ -484,6 +547,10 @@ class HistoricoSLA(models.Model):
     tempo_real = models.DecimalField(max_digits=8, decimal_places=2)
     tempo_esperado = models.DecimalField(max_digits=8, decimal_places=2)
     desvio = models.DecimalField(max_digits=8, decimal_places=2)
+    tempo_pausado = models.DecimalField(
+        max_digits=8, decimal_places=2, default=0,
+        help_text="Total de horas em que o chamado ficou com o SLA pausado — já descontado de tempo_real",
+    )
 
     class Meta:
         verbose_name = "Histórico de SLA"

@@ -14,6 +14,11 @@
         <div class="btn-group" role="group" aria-label="Alternar entre todos os chamados e os meus">
             <a href="?{{ querystring_todos }}" class="btn btn-sm {% if not atribuidos_a_mim %}btn-primary{% else %}btn-outline-primary{% endif %}">Todos</a>
             <a href="?{{ querystring_meus }}" class="btn btn-sm {% if atribuidos_a_mim %}btn-primary{% else %}btn-outline-primary{% endif %}">Meus chamados</a>
+            {% if meu_nivel %}
+                <a href="?{{ querystring_meu_nivel }}" class="btn btn-sm {% if filtrando_meu_nivel %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                    Meu nível ({{ meu_nivel|upper }})
+                </a>
+            {% endif %}
         </div>
         <button
             type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse"
@@ -78,6 +83,7 @@
                 <option value="">Todos</option>
                 <option value="aberto" {% if status_selecionado == "aberto" %}selected{% endif %}>Aberto</option>
                 <option value="em_atendimento" {% if status_selecionado == "em_atendimento" %}selected{% endif %}>Em atendimento</option>
+                <option value="pausado" {% if status_selecionado == "pausado" %}selected{% endif %}>Pausado</option>
             </select>
         </div>
         <div class="col-md-2">
@@ -121,50 +127,48 @@
             <tr>
                 <th>#</th>
                 <th>Solicitante</th>
-                <th>Setor</th>
-                <th>Categoria (usuário)</th>
-                <th>Categoria (IA)</th>
+                <th>Categoria</th>
                 <th>Tipo</th>
                 <th>Nível</th>
                 <th>Prioridade</th>
                 <th>Status</th>
                 <th>Responsável</th>
                 <th>Aberto em</th>
-                <th>Tempo limite</th>
+                <th>Tempo restante</th>
             </tr>
         </thead>
         <tbody>
             {% for ticket in tickets %}
-            <tr onclick="window.location='{% url 'tickets:detalhe_ticket' ticket.pk %}'" style="cursor: pointer;">
+            <tr
+                class="{{ ticket.sla_nivel }}" style="cursor: pointer;"
+                onclick="window.location='{% url 'tickets:detalhe_ticket' ticket.pk %}'">
                 <td>{{ ticket.codigo }}</td>
                 <td>
                     <div class="d-flex align-items-center gap-2">
                         <span class="avatar-circle" style="background-color: {{ ticket.solicitante_nome|cor_avatar }};">
                             {{ ticket.solicitante_nome|iniciais }}
                         </span>
-                        <span>{{ ticket.solicitante_nome }}</span>
+                        <div>
+                            <div class="fw-semibold">{{ ticket.solicitante_nome }}</div>
+                            <div class="small text-muted">{{ ticket.setor }}</div>
+                        </div>
                     </div>
                 </td>
-                <td>{{ ticket.setor }}</td>
                 <td>{{ ticket.categoria_sugerida }}</td>
-                <td>{{ ticket.categoria_ia|default:"—" }}</td>
-                <td>
-                    <span class="badge {% if ticket.tipo_calculado == 'incidente' %}bg-danger{% else %}bg-primary{% endif %}">
-                        {% if ticket.tipo_calculado == 'incidente' %}Incidente{% else %}Requisição{% endif %}
-                    </span>
-                </td>
-                <td>
-                    <span class="badge bg-secondary">{{ ticket.get_nivel_atual_display }}</span>
-                </td>
+                <td>{% if ticket.tipo_calculado == 'incidente' %}Incidente{% else %}Requisição{% endif %}</td>
+                <td>{{ ticket.get_nivel_atual_display }}</td>
                 <td>
                     <span class="badge {{ ticket.prioridade_calculada|prioridade_classe }}">
                         {{ ticket.prioridade_calculada|prioridade_label }}
                     </span>
                 </td>
                 <td>
-                    <span class="badge {% if ticket.status == 'aberto' %}bg-warning text-dark{% else %}bg-info text-dark{% endif %}">
+                    <span class="badge {% if ticket.status == 'aberto' %}bg-warning text-dark{% elif ticket.status == 'pausado' %}bg-dark{% else %}bg-info text-dark{% endif %}">
                         {{ ticket.get_status_display }}
                     </span>
+                    {% if ticket.pausa_atual %}
+                        <div class="small text-muted">{{ ticket.pausa_atual.get_motivo_display }}</div>
+                    {% endif %}
                 </td>
                 <td>
                     {% if ticket.tecnico_responsavel %}
@@ -174,19 +178,18 @@
                     {% endif %}
                 </td>
                 <td>{{ ticket.data_abertura|date:"d/m/Y H:i" }}</td>
-                <td class="{% if ticket.prazo_estourado %}text-danger fw-semibold{% elif ticket.prazo_proximo %}text-warning-emphasis fw-semibold{% endif %}">
-                    {% if ticket.prazo_proximo %}<span title="Menos de 1h para estourar o SLA" aria-hidden="true">⚠️</span>{% endif %}
-                    {{ ticket.prazo|date:"d/m/Y H:i" }}
-                    {% if ticket.prazo_estourado %}
-                        <div class="small">estourado</div>
-                    {% elif ticket.prazo_proximo %}
-                        <div class="small">estoura em breve</div>
-                    {% endif %}
+                <td>
+                    <div class="sla-tempo-restante {{ ticket.sla_nivel }}">{{ ticket.tempo_restante_texto }}</div>
+                    <div
+                        class="sla-progresso" role="progressbar" aria-label="SLA consumido"
+                        aria-valuenow="{{ ticket.percentual_sla_consumido }}" aria-valuemin="0" aria-valuemax="100">
+                        <div class="sla-progresso-barra {{ ticket.sla_nivel }}" style="width: {{ ticket.percentual_sla_consumido }}%;"></div>
+                    </div>
                 </td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="12" class="text-center text-muted py-4">
+                <td colspan="10" class="text-center text-muted py-4">
                     {% if algum_filtro %}Nenhum chamado encontrado com esses filtros.{% else %}Nenhum chamado em aberto.{% endif %}
                 </td>
             </tr>

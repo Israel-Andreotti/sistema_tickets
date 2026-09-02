@@ -34,7 +34,17 @@ urlpatterns = [
     path("tecnico/<int:pk>/", views.detalhe_ticket_view, name="detalhe_ticket"),
     path("tecnico/<int:pk>/classificar/", views.classificar_ticket_view, name="classificar_ticket"),
     path("tecnico/<int:pk>/escalar/", views.escalar_ticket_view, name="escalar_ticket"),
+    path("tecnico/<int:pk>/pausar/", views.pausar_ticket_view, name="pausar_ticket"),
+    path("tecnico/<int:pk>/retomar/", views.retomar_ticket_view, name="retomar_ticket"),
     path("tecnico/<int:pk>/atribuir/", views.atribuir_tecnico_view, name="atribuir_tecnico"),
+    path(
+        "tecnico/<int:pk>/solicitar-transferencia/",
+        views.solicitar_transferencia_view, name="solicitar_transferencia",
+    ),
+    path(
+        "tecnico/<int:pk>/transferencias/<int:solicitacao_pk>/responder/",
+        views.responder_transferencia_view, name="responder_transferencia",
+    ),
     path("tecnico/<int:pk>/fechar/", views.fechar_ticket_view, name="fechar_ticket"),
     path(
         "tecnico/<int:pk>/movimentar-equipamento/",

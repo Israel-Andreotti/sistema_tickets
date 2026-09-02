@@ -154,6 +154,14 @@ h1, h2, h3 { color: var(--brand); }
     font-size: 0.82rem;
     color: var(--label-muted);
 }
+/* Limita o crescimento de listas de histórico longas (ex: escalonamento
+   num card lado a lado com outro mais curto) — sem isso o card cresce sem
+   limite e desalinha a altura das colunas vizinhas. */
+.timeline-scroll {
+    max-height: 220px;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+}
 
 .avatar-circle {
     width: 2rem;
@@ -424,6 +432,11 @@ h1, h2, h3 { color: var(--brand); }
    o bootstrap.bundle.min.js tem um handler global de teclado que trata
    qualquer elemento com essas classes como um Dropdown dele, mesmo sem
    data-bs-toggle, e quebra ao navegar com as setas. */
+button.form-select {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 .menu-flutuante {
     background-color: var(--card-bg);
     border: 1px solid var(--card-border);

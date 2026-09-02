@@ -16,7 +16,7 @@
                         <span class="badge {% if tipo_calculado == 'incidente' %}bg-danger{% else %}bg-primary{% endif %}">
                             {% if tipo_calculado == 'incidente' %}Incidente{% else %}Requisição{% endif %}
                         </span>
-                        <span class="badge {% if ticket.status == 'aberto' %}bg-warning text-dark{% elif ticket.status == 'em_atendimento' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                        <span class="badge {% if ticket.status == 'aberto' %}bg-warning text-dark{% elif ticket.status == 'em_atendimento' %}bg-info text-dark{% elif ticket.status == 'pausado' %}bg-dark{% else %}bg-secondary{% endif %}">
                             {{ ticket.get_status_display }}
                         </span>
                     </div>

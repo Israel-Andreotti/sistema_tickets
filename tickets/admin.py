@@ -11,11 +11,13 @@ from .models import (
     MovimentacaoEquipamento,
     Notificacao,
     ParametroSistema,
+    PausaSLA,
     PerfilTecnico,
     Recomendacao,
     RegraRecomendacao,
     RespostaRapida,
     RespostaRapidaEdicao,
+    SolicitacaoTransferencia,
     Setor,
     Ticket,
 )
@@ -183,6 +185,34 @@ class EscalonamentoTicketAdmin(admin.ModelAdmin):
     list_filter = ("nivel_anterior", "nivel_novo")
     autocomplete_fields = ("ticket", "autor")
     readonly_fields = ("ticket", "autor", "nivel_anterior", "nivel_novo", "justificativa", "criado_em")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(SolicitacaoTransferencia)
+class SolicitacaoTransferenciaAdmin(admin.ModelAdmin):
+    list_display = ("ticket", "solicitante", "tecnico_atual", "status", "criado_em")
+    list_filter = ("status",)
+    autocomplete_fields = ("ticket", "solicitante", "tecnico_atual")
+    readonly_fields = ("ticket", "solicitante", "tecnico_atual", "status", "criado_em", "respondido_em")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(PausaSLA)
+class PausaSLAAdmin(admin.ModelAdmin):
+    list_display = ("ticket", "motivo", "autor", "iniciada_em", "finalizada_em")
+    list_filter = ("motivo",)
+    autocomplete_fields = ("ticket", "autor")
+    readonly_fields = ("ticket", "autor", "motivo", "observacao", "iniciada_em", "finalizada_em")
 
     def has_add_permission(self, request):
         return False
