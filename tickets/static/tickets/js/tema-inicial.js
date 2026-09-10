@@ -6,4 +6,7 @@
     if (localStorage.getItem('sidebarCollapsed') === 'true') {
         document.documentElement.setAttribute('data-sidebar-collapsed', 'true');
     }
+    if (localStorage.getItem('filaVisualizacao') === 'kanban') {
+        document.documentElement.setAttribute('data-fila-visualizacao', 'kanban');
+    }
 })();

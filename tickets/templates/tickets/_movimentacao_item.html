@@ -1,0 +1,35 @@
+<div class="mov-item"
+    {% if mov.equipamento_saida and not mov.equipamento_entrada %}data-fila-patrimonio="{{ mov.equipamento_saida.patrimonio }}"
+    {% elif mov.equipamento_entrada and not mov.equipamento_saida %}data-fila-patrimonio="{{ mov.equipamento_entrada.patrimonio }}"{% endif %}>
+    <div>
+        <span class="badge rounded-pill bg-{{ mov.badge_classe }}{% if mov.badge_classe == 'info' or mov.badge_classe == 'warning' %} text-dark{% endif %} mb-1">{{ mov.badge_label }}</span>
+
+        {% if mov.equipamento_saida %}
+        <div class="small">
+            <strong>{{ mov.equipamento_saida.patrimonio }}</strong>
+            — {{ mov.equipamento_saida.get_categoria_display }} {{ mov.equipamento_saida.marca }} {{ mov.equipamento_saida.modelo }}
+        </div>
+        <div class="timeline-transicao">{{ ticket.setor }} → {{ setor_ti }}</div>
+        {% if mov.motivo_retorno %}
+        <div class="small text-muted">
+            Motivo: {{ mov.get_motivo_retorno_display }}
+            {% if mov.nivel_cargo_desligado %} — {{ mov.get_nivel_cargo_desligado_display }}{% endif %}
+        </div>
+        {% endif %}
+        {% endif %}
+
+        {% if mov.equipamento_entrada %}
+        <div class="small">
+            <strong>{{ mov.equipamento_entrada.patrimonio }}</strong>
+            — {{ mov.equipamento_entrada.get_categoria_display }} {{ mov.equipamento_entrada.marca }} {{ mov.equipamento_entrada.modelo }}
+        </div>
+        <div class="timeline-transicao">{{ setor_ti }} → {{ ticket.setor }}</div>
+        {% endif %}
+    </div>
+    {% if not mov.aplicada and ticket.status != 'fechado' %}
+    <form method="post" action="{% url 'tickets:remover_movimentacao' ticket.pk mov.pk %}" class="mb-0">
+        {% csrf_token %}
+        <button type="submit" class="mov-item-remover" title="Remover essa movimentação pendente">✕</button>
+    </form>
+    {% endif %}
+</div>

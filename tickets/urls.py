@@ -10,6 +10,7 @@ urlpatterns = [
     path("perfil/<str:username>/", views.perfil_view, name="perfil"),
     path("meus/", views.meus_tickets_view, name="meus_tickets"),
     path("meus/<int:pk>/", views.meu_ticket_detalhe_view, name="meu_ticket_detalhe"),
+    path("meus/<int:pk>/responder/", views.responder_ticket_view, name="responder_ticket"),
     path("notificacoes/", views.notificacoes_view, name="notificacoes"),
     path("notificacoes/dropdown/", views.notificacoes_dropdown_view, name="notificacoes_dropdown"),
     path("notificacoes/novas/", views.notificacoes_novas_view, name="notificacoes_novas"),

@@ -2,7 +2,7 @@ import bleach
 from bleach.css_sanitizer import CSSSanitizer
 from django import forms
 from django.contrib.auth import get_user_model
-from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm
+from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm, SetPasswordForm
 from django.utils.html import strip_tags
 
 from .models import (
@@ -207,6 +207,22 @@ class ComentarioForm(forms.ModelForm):
         }
 
 
+class ResponderTicketForm(forms.ModelForm):
+    """Resposta do solicitante ao técnico — mesma tabela/área de
+    ComentarioForm, mas sem o rádio de tipo: o tipo é sempre
+    RESPOSTA_SOLICITANTE, fixado na view (ver responder_ticket_view)."""
+
+    class Meta:
+        model = ComentarioTicket
+        fields = ["texto"]
+        widgets = {
+            "texto": forms.Textarea(attrs={
+                "class": "form-control", "rows": 3,
+                "placeholder": "Escreva sua resposta para o técnico...",
+            }),
+        }
+
+
 class CadastrarEquipamentoForm(forms.ModelForm):
     class Meta:
         model = ItemConfiguracao
@@ -227,6 +243,12 @@ class CadastrarEquipamentoForm(forms.ModelForm):
             "nivel_cargo_desligado": forms.Select(attrs={"class": "form-select"}),
             "data_inicio_resguardo": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
         }
+
+    def clean_marca(self):
+        return self.cleaned_data["marca"].strip().title()
+
+    def clean_modelo(self):
+        return self.cleaned_data["modelo"].strip().title()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -253,6 +275,12 @@ class CadastrarEquipamentoForm(forms.ModelForm):
 
 
 class LoginForm(AuthenticationForm):
+    manter_conectado = forms.BooleanField(
+        label="Manter conectado",
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["username"].widget.attrs.update({"class": "form-control"})
@@ -260,6 +288,33 @@ class LoginForm(AuthenticationForm):
 
 
 class TrocarSenhaForm(PasswordChangeForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for campo in self.fields.values():
+            campo.widget.attrs.update({"class": "form-control"})
+
+
+class EsqueciSenhaForm(forms.Form):
+    username = forms.CharField(
+        label="Usuário",
+        error_messages={"required": "Informe seu usuário."},
+        widget=forms.TextInput(attrs={"class": "form-control", "autofocus": True}),
+    )
+
+
+class ConfirmarCodigoForm(forms.Form):
+    codigo = forms.CharField(
+        label="Código recebido por e-mail",
+        min_length=6, max_length=6,
+        error_messages={"required": "Informe o código recebido por e-mail."},
+        widget=forms.TextInput(attrs={
+            "class": "form-control", "inputmode": "numeric",
+            "autocomplete": "one-time-code", "placeholder": "000000",
+        }),
+    )
+
+
+class RedefinirSenhaForm(SetPasswordForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for campo in self.fields.values():
@@ -324,4 +379,7 @@ class RespostaRapidaForm(forms.ModelForm):
         self.fields["grupo"].required = False
         self.fields["grupo"].choices = [("", "Sem grupo")] + list(Categoria.Grupo.choices)
         self.fields["tipo_padrao"].required = False
-        self.fields["tipo_padrao"].choices = [("", "Não marcar nenhum")] + list(ComentarioTicket.Tipo.choices)
+        self.fields["tipo_padrao"].choices = [("", "Não marcar nenhum")] + [
+            choice for choice in ComentarioTicket.Tipo.choices
+            if choice[0] != ComentarioTicket.Tipo.RESPOSTA_SOLICITANTE
+        ]

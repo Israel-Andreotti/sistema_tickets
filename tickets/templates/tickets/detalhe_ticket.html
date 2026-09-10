@@ -63,46 +63,77 @@
 
         <!-- Resumo compacto: Atribuição / Escalonamento / Pausa viram modais -->
         <div class="row g-3 mb-4">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="card shadow-sm h-100">
-                    <div class="card-body d-flex justify-content-between align-items-center gap-2">
-                        <div>
+                    <div class="card-body d-flex flex-column">
+                        <div class="flex-grow-1 mb-2">
                             <div class="kv-label mb-1">Técnico responsável</div>
-                            <p class="kv-value mb-0">
-                                {% if ticket.tecnico_responsavel %}
-                                    {{ ticket.tecnico_responsavel.get_full_name|default:ticket.tecnico_responsavel.username }}
-                                {% else %}
-                                    <span class="text-muted">Não atribuído</span>
-                                {% endif %}
-                            </p>
+                            {% if ticket.tecnico_responsavel %}
+                                {% with nome=ticket.tecnico_responsavel.get_full_name|default:ticket.tecnico_responsavel.username %}
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="avatar-circle avatar-circle-sm" style="background-color: {{ nome|cor_avatar }};">{{ nome|iniciais }}</span>
+                                    <div>
+                                        <p class="kv-value mb-0">{{ nome }}</p>
+                                        {% if ticket.tecnico_responsavel_id == request.user.id %}
+                                            <span class="badge rounded-pill bg-primary-subtle text-primary-emphasis">Atribuído a você</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endwith %}
+                            {% else %}
+                                <p class="kv-value mb-0"><span class="text-muted">Não atribuído</span></p>
+                            {% endif %}
                             {% if solicitacao_pendente %}
-                                <div class="small text-muted">Transferência pendente</div>
+                                <div class="small text-muted mt-1">Transferência pendente</div>
                             {% endif %}
                         </div>
-                        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAtribuicao">
-                            Gerenciar
-                        </button>
+                        {% if request.user.is_staff %}
+                            {% if not ticket.tecnico_responsavel %}
+                                <form method="post" action="{% url 'tickets:atribuir_tecnico' ticket.pk %}" class="mb-0">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="tecnico_id" value="{{ request.user.pk }}">
+                                    <button type="submit" class="btn btn-primary btn-sm w-100">Atribuir para mim</button>
+                                </form>
+                            {% elif ticket.tecnico_responsavel_id == request.user.id %}
+                                <button type="button" class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#modalAtribuicao">
+                                    Gerenciar
+                                </button>
+                            {% elif not solicitacao_pendente %}
+                                <form method="post" action="{% url 'tickets:solicitar_transferencia' ticket.pk %}" class="mb-0">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-primary btn-sm w-100">Solicitar chamado</button>
+                                </form>
+                            {% else %}
+                                <button type="button" class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#modalAtribuicao">
+                                    Gerenciar
+                                </button>
+                            {% endif %}
+                        {% else %}
+                            <button type="button" class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#modalAtribuicao">
+                                Gerenciar
+                            </button>
+                        {% endif %}
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="card shadow-sm h-100">
-                    <div class="card-body d-flex justify-content-between align-items-center gap-2">
-                        <div>
+                    <div class="card-body d-flex flex-column">
+                        <div class="flex-grow-1 mb-2">
                             <div class="kv-label mb-1">Nível de atendimento</div>
                             <p class="kv-value mb-0">{{ ticket.get_nivel_atual_display }}</p>
                         </div>
-                        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalEscalonamento">
+                        <button type="button" class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#modalEscalonamento">
                             Gerenciar
                         </button>
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="card shadow-sm h-100">
-                    <div class="card-body d-flex justify-content-between align-items-center gap-2">
-                        <div>
-                            <div class="kv-label mb-1">SLA</div>
+                    <div class="card-body d-flex flex-column">
+                        <div class="flex-grow-1 mb-2">
+                            <div class="kv-label mb-1">Status</div>
                             <p class="kv-value mb-0">
                                 {% if pausa_atual %}Pausado{% else %}Em atendimento{% endif %}
                             </p>
@@ -110,7 +141,37 @@
                                 <div class="small text-muted">{{ pausa_atual.get_motivo_display }}</div>
                             {% endif %}
                         </div>
-                        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalPausa">
+                        <button type="button" class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#modalPausa">
+                            Gerenciar
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body d-flex flex-column">
+                        <div class="flex-grow-1 mb-2">
+                            <div class="kv-label mb-1">Equipamento</div>
+                            <p class="kv-value mb-0">
+                                {% if ticket.item_configuracao %}
+                                    {{ ticket.item_configuracao.patrimonio }}
+                                {% elif movimentacoes_pendentes_count %}
+                                    {{ movimentacoes_pendentes_count }} em movimentação
+                                {% elif movimentacoes_aplicadas_count %}
+                                    {{ movimentacoes_aplicadas_count }} movimentado{{ movimentacoes_aplicadas_count|pluralize }}
+                                {% else %}
+                                    <span class="text-muted">Nenhum vinculado</span>
+                                {% endif %}
+                            </p>
+                            {% if movimentacoes_pendentes_count %}
+                                <div class="small text-muted">Pendente até o chamado fechar</div>
+                            {% elif movimentacoes_aplicadas_count %}
+                                <div class="small text-success">✓ Movimentação aplicada</div>
+                            {% elif ticket.movimentacao_confirmada %}
+                                <div class="small text-success">✓ Sem movimentação necessária</div>
+                            {% endif %}
+                        </div>
+                        <button type="button" class="btn btn-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#modalEquipamento">
                             Gerenciar
                         </button>
                     </div>
@@ -118,7 +179,11 @@
             </div>
         </div>
 
-        <!-- Modal: Atribuição do técnico -->
+        {% comment %}
+        Modal: Atribuição do técnico (chamado sem responsável usa o botão
+        direto no card acima, sem abrir isto — ver abaixo o form de
+        atribuição livre, escondido pra técnico)
+        {% endcomment %}
         <div class="modal fade" id="modalAtribuicao" tabindex="-1" aria-labelledby="modalAtribuicaoLabel" aria-hidden="true">
             <div class="modal-dialog modal-lg">
                 <div class="modal-content">
@@ -173,6 +238,7 @@
                         </div>
                         {% endif %}
 
+                        {% if not request.user.is_staff %}
                         <form method="post" action="{% url 'tickets:atribuir_tecnico' ticket.pk %}" novalidate class="d-flex align-items-end gap-2 mt-3 mb-0">
                             {% csrf_token %}
                             <div class="flex-grow-1">
@@ -192,6 +258,7 @@
                                 {% if ticket.tecnico_responsavel %}Reatribuir{% else %}Atribuir{% endif %}
                             </button>
                         </form>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -291,9 +358,9 @@
                                     <button type="submit" class="btn btn-success btn-sm">Retomar atendimento</button>
                                 </form>
                             {% elif ticket.status != 'fechado' %}
-                                <form method="post" action="{% url 'tickets:pausar_ticket' ticket.pk %}" novalidate class="d-flex flex-wrap align-items-end gap-2 mb-0">
+                                <form method="post" action="{% url 'tickets:pausar_ticket' ticket.pk %}" novalidate class="d-flex flex-wrap align-items-end gap-2 mb-0 w-100">
                                     {% csrf_token %}
-                                    <div style="width: 220px;">
+                                    <div class="flex-fill" style="min-width: 160px;">
                                         <label for="motivo" class="form-label small mb-1">Pausar por</label>
                                         <select name="motivo" id="motivo" class="form-select form-select-sm">
                                             {% for valor, rotulo in motivos_pausa %}
@@ -301,11 +368,11 @@
                                             {% endfor %}
                                         </select>
                                     </div>
-                                    <div style="min-width: 240px;">
+                                    <div class="flex-fill" style="min-width: 160px;">
                                         <label for="observacao" class="form-label small mb-1">Observação (opcional)</label>
                                         <input type="text" name="observacao" id="observacao" class="form-control form-control-sm">
                                     </div>
-                                    <button type="submit" class="btn btn-danger btn-sm">Pausar chamado</button>
+                                    <button type="submit" class="btn btn-danger btn-sm flex-fill" style="min-width: 120px;">Pausar chamado</button>
                                 </form>
                             {% endif %}
                         </div>
@@ -369,10 +436,13 @@
                         </div>
                         <button
                             type="submit" class="btn {% if ticket.categoria_final %}btn-outline-secondary{% else %}btn-primary{% endif %}"
-                            {% if ticket.categoria_final %}disabled{% endif %}>
+                            {% if ticket.categoria_final or not pode_gerenciar_chamado %}disabled{% endif %}>
                             {% if ticket.categoria_final %}Chamado classificado{% else %}Confirmar classificação{% endif %}
                         </button>
                     </div>
+                    {% if not ticket.categoria_final and not pode_gerenciar_chamado %}
+                        <div class="form-text mt-1">Só o técnico responsável pode confirmar a classificação.</div>
+                    {% endif %}
                     {% for error in form.categoria_final.errors %}
                         <div class="text-danger small">{{ error }}</div>
                     {% endfor %}
@@ -380,10 +450,18 @@
             </div>
         </div>
 
-        <!-- Equipamento -->
-        <div class="card shadow-sm mb-4">
-            <div class="card-body">
-                <h2 class="h6 mb-3">Equipamento</h2>
+        <!-- Modal: Movimentar equipamento -->
+        <div class="modal fade" id="modalEquipamento" tabindex="-1" aria-labelledby="modalEquipamentoLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <div>
+                            <h5 class="modal-title" id="modalEquipamentoLabel">Movimentar equipamento</h5>
+                            <div class="small text-muted">Chamado {{ ticket.codigo }} · {{ ticket.setor }}</div>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                    </div>
+                    <div class="modal-body">
 
                 <div class="kv-label mb-2">Equipamento vinculado</div>
                 {% if ticket.item_configuracao %}
@@ -399,95 +477,84 @@
                 {% if ticket.movimentacao_confirmada %}
                 <div class="text-success small mb-2">
                     ✓ Movimentação de equipamento já confirmada pra este chamado — dá pra fechar o chamado
-                    normalmente. Use o formulário abaixo só se precisar registrar outra movimentação.
+                    normalmente. Use os controles abaixo só se precisar registrar outra movimentação.
                 </div>
                 {% endif %}
 
                 {% if ticket.status != 'fechado' %}
-                <form method="post" action="{% url 'tickets:movimentar_equipamento' ticket.pk %}" class="mt-2" novalidate>
-                    {% csrf_token %}
-                    <div class="row">
-                        <div class="col-md-6 mb-2">
-                            <label for="patrimonio_saida" class="form-label small mb-1">Patrimônio que está saindo (retorna para a informática)</label>
-                            <div class="input-group input-group-sm">
-                                <input
-                                    type="text" name="patrimonio_saida" id="patrimonio_saida"
-                                    class="form-control form-control-sm" maxlength="6" placeholder="6 dígitos"
-                                    value="{% if patrimonio_saida_valor is not None %}{{ patrimonio_saida_valor }}{% else %}{{ ticket.item_configuracao.patrimonio|default:'' }}{% endif %}"
-                                    data-consulta="saida">
-                                <button type="button" class="btn btn-outline-primary" data-limpar="patrimonio_saida" title="Remover" aria-label="Remover patrimônio de saída">✕</button>
-                            </div>
-                            <div id="info-patrimonio_saida"></div>
-                        </div>
-                        <div class="col-md-6 mb-2">
-                            <label for="patrimonio_entrada" class="form-label small mb-1">Patrimônio que está entrando</label>
-                            <div class="input-group input-group-sm">
-                                <input
-                                    type="text" name="patrimonio_entrada" id="patrimonio_entrada"
-                                    class="form-control form-control-sm" maxlength="6" placeholder="6 dígitos"
-                                    value="{{ patrimonio_entrada_valor|default:'' }}"
-                                    data-consulta="entrada">
-                                <button type="button" class="btn btn-outline-primary" data-limpar="patrimonio_entrada" title="Remover" aria-label="Remover patrimônio de entrada">✕</button>
-                            </div>
-                            <div id="info-patrimonio_entrada"></div>
-                        </div>
-                    </div>
-                    <div class="form-text mb-2">
-                        Só é possível adicionar equipamentos lotados na informática e com situação Disponível.
-                        Deixe um dos campos em branco para só devolver ou só vincular.
-                    </div>
-
-                    <div class="form-check mb-2">
-                        <input type="checkbox" name="sem_movimentacao" id="sem_movimentacao" class="form-check-input">
-                        <label for="sem_movimentacao" class="form-check-label small">
-                            Não houve movimentação de equipamento neste atendimento
-                        </label>
-                    </div>
-
-                    <button type="submit" class="btn btn-outline-primary btn-sm">Movimentar equipamento</button>
-                </form>
-                {% endif %}
-
-                {% if movimentacoes %}
                 <hr>
-                <div class="kv-label mb-2">Histórico de movimentações</div>
-                <ul class="timeline">
-                    {% for mov in movimentacoes %}
-                    <li class="timeline-item">
-                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
-                            <div class="d-flex align-items-center flex-wrap gap-2">
-                                <span class="badge bg-{{ mov.badge_classe }}{% if mov.badge_classe == 'info' or mov.badge_classe == 'warning' %} text-dark{% endif %}">{{ mov.badge_label }}</span>
-                                <span class="small text-muted">
-                                    {{ mov.autor.get_full_name|default:mov.autor.username }} — {{ mov.criado_em|date:"d/m/Y H:i" }}
-                                </span>
-                            </div>
-                            {% if not mov.aplicada and ticket.status != 'fechado' %}
-                            <form method="post" action="{% url 'tickets:remover_movimentacao' ticket.pk mov.pk %}" class="mb-0">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2" title="Remover essa movimentação pendente">Remover</button>
-                            </form>
-                            {% endif %}
-                        </div>
-
-                        {% if mov.equipamento_saida %}
-                        <div class="small mb-1">
-                            <strong>{{ mov.equipamento_saida.patrimonio }}</strong>
-                            ({{ mov.equipamento_saida.get_categoria_display }} {{ mov.equipamento_saida.marca }} {{ mov.equipamento_saida.modelo }})
-                            <div class="timeline-transicao">{{ ticket.setor }} ➔ {{ setor_ti }}</div>
-                        </div>
-                        {% endif %}
-
-                        {% if mov.equipamento_entrada %}
-                        <div class="small">
-                            <strong>{{ mov.equipamento_entrada.patrimonio }}</strong>
-                            ({{ mov.equipamento_entrada.get_categoria_display }} {{ mov.equipamento_entrada.marca }} {{ mov.equipamento_entrada.modelo }})
-                            <div class="timeline-transicao">{{ setor_ti }} ➔ {{ ticket.setor }}</div>
-                        </div>
-                        {% endif %}
-                    </li>
-                    {% endfor %}
-                </ul>
+                <div id="dadosMovimentacao" data-setor-chamado="{{ ticket.setor }}" data-setor-ti="{{ setor_ti }}" data-ticket-pk="{{ ticket.pk }}">
+                    <label for="buscaPatrimonioMovimentacao" class="form-label small mb-1">Digite o patrimônio do equipamento</label>
+                    <div class="d-flex gap-2">
+                        <input
+                            type="text" id="buscaPatrimonioMovimentacao" class="form-control form-control-sm"
+                            placeholder="6 dígitos" maxlength="6" autocomplete="off">
+                        <button type="button" id="botaoAdicionarMovimentacao" class="btn btn-outline-primary btn-sm text-nowrap" disabled>
+                            Adicionar à movimentação
+                        </button>
+                    </div>
+                    <div class="form-text mt-1">
+                        Equipamento da {{ ticket.setor }} → registrado como saída para a Informática.
+                        Equipamento disponível na Informática → registrado como entrada na {{ ticket.setor }}.
+                    </div>
+                    <div id="previewMovimentacao"></div>
+                </div>
                 {% endif %}
+
+                <div class="kv-label mt-3 mb-2">Equipamentos neste atendimento</div>
+                <form method="post" action="{% url 'tickets:movimentar_equipamento' ticket.pk %}" id="formMovimentacaoEquipamento" novalidate>
+                    {% csrf_token %}
+                    <input type="hidden" name="itens" id="itensMovimentacaoInput" value="">
+                    <div id="filaMovimentacao" class="mov-fila">
+                        {% for mov in movimentacoes %}
+                        {% include "tickets/_movimentacao_item.html" with mov=mov ticket=ticket setor_ti=setor_ti %}
+                        {% empty %}
+                        <p class="text-muted small mb-0" id="filaMovimentacaoVazia">Nenhum equipamento adicionado ainda.</p>
+                        {% endfor %}
+                    </div>
+                    {% if ticket.status != 'fechado' %}
+                    <div id="avisoMovimentacaoPendente" class="form-text text-danger mt-2 d-none">
+                        Corrija o aviso ou limpe o campo para registrar.
+                    </div>
+                    {% endif %}
+                </form>
+
+                    </div>
+                    {% if ticket.status != 'fechado' %}
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" form="formMovimentacaoEquipamento" class="btn btn-primary" id="botaoRegistrarMovimentacao" disabled>
+                            Registrar movimentação
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: cargo do funcionário desligado (aberto ao marcar "Desligamento" no motivo do retorno) -->
+        <div class="modal fade" id="modalCargoDesligado" tabindex="-1" aria-labelledby="modalCargoDesligadoLabel" aria-hidden="true">
+            <div class="modal-dialog modal-sm">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalCargoDesligadoLabel">Cargo do funcionário desligado</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="small text-muted">
+                            Define o prazo de resguardo do equipamento (30 dias liderança / 15 dias outros
+                            cargos), aplicado automaticamente quando o chamado for fechado.
+                        </p>
+                        <div class="d-flex flex-column gap-2">
+                            <button type="button" class="btn btn-outline-primary" data-cargo="lideranca" data-cargo-label="Gestor ou diretor">
+                                Gestor ou diretor
+                            </button>
+                            <button type="button" class="btn btn-outline-primary" data-cargo="colaborador" data-cargo-label="Outro cargo">
+                                Outro cargo
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -564,16 +631,13 @@
                         <div class="form-text mb-0">Confirme a classificação final antes de fechar o chamado.</div>
                     {% elif not ticket.tecnico_responsavel %}
                         <div class="form-text mb-0">Atribua um técnico responsável antes de fechar o chamado.</div>
-                    {% elif not ticket.movimentacao_confirmada %}
-                        <div class="form-text mb-0">Registre a movimentação de equipamento (ou confirme que não houve) antes de fechar.</div>
+                    {% elif not pode_gerenciar_chamado %}
+                        <div class="form-text mb-0">Só o técnico responsável pode fechar o chamado.</div>
                     {% endif %}
                     <button
                         type="button" class="btn btn-primary" id="botaoFecharChamado"
                         data-bs-toggle="modal" data-bs-target="#modalFecharChamado"
-                        data-categoria-confirmada="{% if ticket.categoria_final %}true{% else %}false{% endif %}"
-                        data-tecnico-atribuido="{% if ticket.tecnico_responsavel %}true{% else %}false{% endif %}"
-                        data-movimentacao-confirmada="{% if ticket.movimentacao_confirmada %}true{% else %}false{% endif %}"
-                        {% if not ticket.categoria_final or not ticket.tecnico_responsavel or not ticket.movimentacao_confirmada %}disabled{% endif %}>
+                        {% if not ticket.categoria_final or not ticket.tecnico_responsavel or not pode_gerenciar_chamado %}disabled{% endif %}>
                         Fechar chamado
                     </button>
                 </div>
@@ -583,7 +647,6 @@
                         <div class="modal-content">
                             <form method="post" action="{% url 'tickets:fechar_ticket' ticket.pk %}">
                                 {% csrf_token %}
-                                <input type="hidden" name="confirmar_sem_movimentacao" id="hiddenConfirmarSemMovimentacao" value="">
                                 <div class="modal-header">
                                     <h5 class="modal-title" id="modalFecharChamadoLabel">Fechar chamado {{ ticket.codigo }}</h5>
                                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cancelar"></button>
@@ -594,10 +657,22 @@
                                         calculado e registrado neste momento, e o chamado sai da fila
                                         de atendimento.
                                     </p>
+                                    {% if not ticket.movimentacao_confirmada %}
+                                    <div class="form-check mt-3">
+                                        <input type="checkbox" name="confirmar_sem_movimentacao" id="confirmar_sem_movimentacao" class="form-check-input">
+                                        <label for="confirmar_sem_movimentacao" class="form-check-label small">
+                                            Não houve movimentação de equipamento neste atendimento
+                                        </label>
+                                    </div>
+                                    {% endif %}
                                 </div>
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                                    <button type="submit" class="btn btn-primary">Confirmar fechamento</button>
+                                    <button
+                                        type="submit" class="btn btn-primary" id="botaoConfirmarFechamento"
+                                        {% if not ticket.movimentacao_confirmada %}disabled{% endif %}>
+                                        Confirmar fechamento
+                                    </button>
                                 </div>
                             </form>
                         </div>

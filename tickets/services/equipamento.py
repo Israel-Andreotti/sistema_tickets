@@ -15,7 +15,8 @@ MovimentacaoEquipamento, formando o histórico exibido na tela do ticket.
 """
 from django.utils import timezone
 
-from ..models import ItemConfiguracao, MovimentacaoEquipamento, Setor, Ticket
+from ..models import ItemConfiguracao, MovimentacaoEquipamento, Notificacao, Setor, Ticket
+from .notificacoes import notificar_usuario
 from .parametros import get_parametro
 
 
@@ -37,20 +38,29 @@ def equipamento_elegivel_para_saida(equipamento: ItemConfiguracao, ticket: Ticke
 
 def liberar_resguardos_vencidos() -> int:
     """Promove pra 'resguardo_liberado' todo equipamento em 'em_resguardo'
-    cujo prazo já venceu. Chamada sob demanda (o projeto não tem cron/Celery)
-    a partir da tela de equipamentos — ver listar_equipamentos_view."""
+    cujo prazo já venceu, e avisa o técnico responsável (se o resguardo veio
+    do fluxo de movimentação de um chamado — ver aplicar_movimentacoes_pendentes;
+    resguardo aplicado manualmente pela edição do equipamento não tem técnico
+    associado, então é liberado normalmente mas sem notificação). Chamada sob
+    demanda (o projeto não tem cron/Celery) a partir da fila de chamados e da
+    tela de equipamentos — ver fila_tickets_view/listar_equipamentos_view."""
     hoje = timezone.now().date()
     vencidos = [
-        item.pk for item in ItemConfiguracao.objects.filter(
+        item for item in ItemConfiguracao.objects.filter(
             status=ItemConfiguracao.Status.EM_RESGUARDO,
             data_inicio_resguardo__isnull=False,
-        )
+        ).select_related("tecnico_responsavel_resguardo", "ticket_origem_resguardo")
         if item.data_fim_resguardo and item.data_fim_resguardo <= hoje
     ]
-    if vencidos:
-        ItemConfiguracao.objects.filter(pk__in=vencidos).update(
-            status=ItemConfiguracao.Status.RESGUARDO_LIBERADO
-        )
+    for item in vencidos:
+        item.status = ItemConfiguracao.Status.RESGUARDO_LIBERADO
+        item.save(update_fields=["status"])
+        if item.tecnico_responsavel_resguardo_id and item.ticket_origem_resguardo_id:
+            notificar_usuario(
+                item.tecnico_responsavel_resguardo, item.ticket_origem_resguardo,
+                Notificacao.Tipo.RESGUARDO_LIBERADO,
+                f"O resguardo do equipamento {item.patrimonio} terminou — já pode ser liberado para formatação.",
+            )
     return len(vencidos)
 
 
@@ -60,10 +70,18 @@ def movimentar_equipamento(
     autor,
     equipamento_saida: ItemConfiguracao | None = None,
     equipamento_entrada: ItemConfiguracao | None = None,
+    motivo_retorno: str | None = None,
+    nivel_cargo_desligado: str | None = None,
 ) -> MovimentacaoEquipamento:
     """Registra a movimentação como pendente (fica em stand-by): valida a
     elegibilidade e grava o registro, mas não altera o CMDB ainda — isso só
-    acontece em aplicar_movimentacoes_pendentes(), chamada ao fechar o chamado."""
+    acontece em aplicar_movimentacoes_pendentes(), chamada ao fechar o chamado.
+
+    `motivo_retorno`/`nivel_cargo_desligado` só se aplicam a equipamento de
+    saída (voltando pra TI) — quando o motivo é desligamento de colaborador,
+    é o cargo que define o prazo de resguardo aplicado automaticamente ao
+    equipamento no fechamento do chamado (30 dias liderança / 15 dias
+    outros cargos, mesma regra já usada na edição manual do equipamento)."""
     if equipamento_saida and not equipamento_elegivel_para_saida(equipamento_saida, ticket):
         raise ValueError(
             f"O equipamento {equipamento_saida.patrimonio} não está lotado no "
@@ -76,6 +94,17 @@ def movimentar_equipamento(
             "informática e com situação Disponível."
         )
 
+    if equipamento_saida and not motivo_retorno:
+        raise ValueError("Informe o motivo do retorno do equipamento para a TI.")
+
+    if (
+        motivo_retorno == MovimentacaoEquipamento.MotivoRetorno.DESLIGAMENTO
+        and not nivel_cargo_desligado
+    ):
+        raise ValueError(
+            "Informe o cargo do funcionário desligado para calcular o prazo de resguardo."
+        )
+
     ticket.movimentacao_confirmada = True
     ticket.save(update_fields=["movimentacao_confirmada"])
 
@@ -84,6 +113,12 @@ def movimentar_equipamento(
         autor=autor,
         equipamento_saida=equipamento_saida,
         equipamento_entrada=equipamento_entrada,
+        motivo_retorno=motivo_retorno if equipamento_saida else None,
+        nivel_cargo_desligado=(
+            nivel_cargo_desligado
+            if motivo_retorno == MovimentacaoEquipamento.MotivoRetorno.DESLIGAMENTO
+            else None
+        ),
     )
 
 
@@ -125,8 +160,20 @@ def aplicar_movimentacoes_pendentes(ticket: Ticket) -> None:
         if mov.equipamento_saida:
             setor_ti = obter_setor_ti()
             mov.equipamento_saida.setor = setor_ti
-            mov.equipamento_saida.status = ItemConfiguracao.Status.MANUTENCAO
-            mov.equipamento_saida.save(update_fields=["setor", "status"])
+            if mov.motivo_retorno == MovimentacaoEquipamento.MotivoRetorno.DESLIGAMENTO:
+                mov.equipamento_saida.status = ItemConfiguracao.Status.EM_RESGUARDO
+                mov.equipamento_saida.nivel_cargo_desligado = mov.nivel_cargo_desligado
+                mov.equipamento_saida.data_inicio_resguardo = timezone.now().date()
+                mov.equipamento_saida.tecnico_responsavel_resguardo = mov.autor
+                mov.equipamento_saida.ticket_origem_resguardo = mov.ticket
+                campos_saida = [
+                    "setor", "status", "nivel_cargo_desligado", "data_inicio_resguardo",
+                    "tecnico_responsavel_resguardo", "ticket_origem_resguardo",
+                ]
+            else:
+                mov.equipamento_saida.status = ItemConfiguracao.Status.MANUTENCAO
+                campos_saida = ["setor", "status"]
+            mov.equipamento_saida.save(update_fields=campos_saida)
 
         if mov.equipamento_entrada:
             mov.equipamento_entrada.setor = ticket.setor

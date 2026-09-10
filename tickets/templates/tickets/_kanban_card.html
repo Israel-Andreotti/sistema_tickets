@@ -1,0 +1,36 @@
+{% load ticket_extras %}
+<a href="{% url 'tickets:detalhe_ticket' ticket.pk %}" class="kanban-card {{ ticket.sla_nivel }}">
+    <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+        <span class="fw-semibold">{{ ticket.codigo }}</span>
+        <span class="badge {{ ticket.prioridade_calculada|prioridade_classe }}">
+            {{ ticket.prioridade_calculada|prioridade_label }}
+        </span>
+    </div>
+    <div class="d-flex align-items-center gap-2 mb-1">
+        <span class="avatar-circle avatar-circle-sm" style="background-color: {{ ticket.solicitante_nome|cor_avatar }};">
+            {{ ticket.solicitante_nome|iniciais }}
+        </span>
+        <div>
+            <div class="small fw-semibold">{{ ticket.solicitante_nome }}</div>
+            <div class="small text-muted">{{ ticket.setor }}</div>
+        </div>
+    </div>
+    <div class="small text-muted mb-1">{{ ticket.categoria_sugerida }}</div>
+    {% if ticket.pausa_atual %}
+        <div class="small text-muted mb-1">⏸ {{ ticket.pausa_atual.get_motivo_display }}</div>
+    {% endif %}
+    <div class="small mb-1">
+        Responsável:
+        {% if ticket.tecnico_responsavel %}
+            {{ ticket.tecnico_responsavel.get_full_name|default:ticket.tecnico_responsavel.username }}
+        {% else %}
+            <span class="text-muted">—</span>
+        {% endif %}
+    </div>
+    <div class="sla-tempo-restante {{ ticket.sla_nivel }} small">{{ ticket.tempo_restante_texto }}</div>
+    <div
+        class="sla-progresso" role="progressbar" aria-label="SLA consumido"
+        aria-valuenow="{{ ticket.percentual_sla_consumido }}" aria-valuemin="0" aria-valuemax="100">
+        <div class="sla-progresso-barra {{ ticket.sla_nivel }}" style="width: {{ ticket.percentual_sla_consumido }}%;"></div>
+    </div>
+</a>

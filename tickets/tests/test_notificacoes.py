@@ -202,6 +202,96 @@ class NotificacaoAoComentarViewTests(TestCase):
         )
 
 
+class ResponderTicketViewTests(TestCase):
+    """Solicitante responde na mesma área de 'Respostas do atendimento' —
+    fica gravado como ComentarioTicket (tipo RESPOSTA_SOLICITANTE) e
+    notifica o técnico responsável, espelhando o caminho técnico→usuário
+    já coberto por NotificacaoAoComentarViewTests."""
+
+    def setUp(self):
+        self.tecnico = get_user_model().objects.create_user(
+            username="tecnico_teste_resposta_solicitante", is_staff=True,
+        )
+        self.solicitante = get_user_model().objects.create_user(
+            username="solicitante_teste_resposta", password="senha-teste-123",
+        )
+        self.categoria = Categoria.objects.create(
+            nome="Categoria teste resposta solicitante", grupo=Categoria.Grupo.SUPORTE,
+            peso_categoria=2, sla_horas=8,
+        )
+        self.setor = Setor.objects.create(nome="Setor teste resposta solicitante", peso_setor=3)
+        self.ticket = Ticket.objects.create(
+            categoria_sugerida=self.categoria,
+            codigo_tipo=self.categoria.tipo,
+            codigo_numero=Ticket.objects.count() + 1,
+            setor=self.setor,
+            descricao="Descrição teste",
+            solicitante=self.solicitante,
+            tecnico_responsavel=self.tecnico,
+            solicitante_nome="Solicitante Teste",
+            solicitante_ramal="1234",
+            solicitante_sala="Sala 10",
+        )
+        self.client.login(username="solicitante_teste_resposta", password="senha-teste-123")
+
+    def test_cria_comentario_com_tipo_resposta_solicitante(self):
+        self.client.post(
+            reverse("tickets:responder_ticket", args=[self.ticket.pk]),
+            {"texto": "Ainda não resolveu, pode verificar de novo?"},
+        )
+        comentario = ComentarioTicket.objects.get(ticket=self.ticket)
+        self.assertEqual(comentario.tipo, ComentarioTicket.Tipo.RESPOSTA_SOLICITANTE)
+        self.assertEqual(comentario.autor, self.solicitante)
+
+    def test_notifica_tecnico_responsavel(self):
+        self.client.post(
+            reverse("tickets:responder_ticket", args=[self.ticket.pk]),
+            {"texto": "Ainda não resolveu, pode verificar de novo?"},
+        )
+        self.assertEqual(
+            Notificacao.objects.filter(
+                destinatario=self.tecnico, tipo=Notificacao.Tipo.NOVO_COMENTARIO
+            ).count(),
+            1,
+        )
+
+    def test_sem_tecnico_responsavel_nao_notifica_ninguem(self):
+        self.ticket.tecnico_responsavel = None
+        self.ticket.save(update_fields=["tecnico_responsavel"])
+
+        self.client.post(
+            reverse("tickets:responder_ticket", args=[self.ticket.pk]),
+            {"texto": "Alguém pode olhar meu chamado?"},
+        )
+        self.assertEqual(Notificacao.objects.count(), 0)
+
+    def test_texto_vazio_nao_cria_comentario(self):
+        self.client.post(reverse("tickets:responder_ticket", args=[self.ticket.pk]), {"texto": ""})
+        self.assertEqual(ComentarioTicket.objects.count(), 0)
+
+    def test_resposta_aparece_na_tela_do_solicitante(self):
+        self.client.post(
+            reverse("tickets:responder_ticket", args=[self.ticket.pk]),
+            {"texto": "Minha resposta de teste"},
+        )
+        resposta = self.client.get(reverse("tickets:meu_ticket_detalhe", args=[self.ticket.pk]))
+        self.assertContains(resposta, "Minha resposta de teste")
+
+    def test_outro_usuario_nao_responde_chamado_alheio(self):
+        outro = get_user_model().objects.create_user(
+            username="outro_teste_resposta_solicitante", password="senha-teste-123",
+        )
+        self.client.logout()
+        self.client.login(username="outro_teste_resposta_solicitante", password="senha-teste-123")
+
+        resposta = self.client.post(
+            reverse("tickets:responder_ticket", args=[self.ticket.pk]), {"texto": "Tentativa indevida"}
+        )
+
+        self.assertEqual(resposta.status_code, 404)
+        self.assertEqual(ComentarioTicket.objects.count(), 0)
+
+
 class NotificacaoViewsDoSolicitanteTests(TestCase):
     def setUp(self):
         self.solicitante = get_user_model().objects.create_user(

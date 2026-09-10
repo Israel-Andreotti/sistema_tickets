@@ -6,7 +6,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from tickets.forms import CadastrarEquipamentoForm
-from tickets.models import ItemConfiguracao, Setor
+from tickets.models import Categoria, ItemConfiguracao, Notificacao, Setor, Ticket
+from tickets.services.classificacao import abrir_ticket
 from tickets.services.equipamento import liberar_resguardos_vencidos
 
 
@@ -86,6 +87,56 @@ class LiberarResguardosVencidosTests(TestCase):
         total = liberar_resguardos_vencidos()
         self.assertEqual(total, 0)
 
+    def test_notifica_tecnico_quando_resguardo_veio_de_um_chamado(self):
+        tecnico = get_user_model().objects.create_user(
+            username="tecnico_teste_notif_resguardo", is_staff=True,
+        )
+        categoria = Categoria.objects.create(
+            nome="Categoria teste notif resguardo", grupo=Categoria.Grupo.SUPORTE,
+            peso_categoria=2, sla_horas=8,
+        )
+        ticket = abrir_ticket(
+            categoria_sugerida=categoria, setor=self.setor, descricao="Descrição teste",
+            solicitante_nome="Fulano", solicitante_ramal="1", solicitante_sala="Sala 1",
+        )
+        hoje = timezone.now().date()
+        item = self._criar_item(
+            "100008", status=ItemConfiguracao.Status.EM_RESGUARDO,
+            nivel_cargo_desligado=ItemConfiguracao.NivelCargoDesligado.COLABORADOR,
+            data_inicio_resguardo=hoje - timedelta(days=16),
+            tecnico_responsavel_resguardo=tecnico, ticket_origem_resguardo=ticket,
+        )
+
+        total = liberar_resguardos_vencidos()
+
+        item.refresh_from_db()
+        self.assertEqual(total, 1)
+        self.assertEqual(item.status, ItemConfiguracao.Status.RESGUARDO_LIBERADO)
+        self.assertEqual(
+            Notificacao.objects.filter(
+                destinatario=tecnico, ticket=ticket, tipo=Notificacao.Tipo.RESGUARDO_LIBERADO,
+            ).count(),
+            1,
+        )
+
+    def test_nao_notifica_quando_resguardo_nao_veio_de_um_chamado(self):
+        """Resguardo aplicado direto na edição do equipamento (sem passar por
+        um chamado) não tem técnico/chamado de origem — libera normalmente,
+        só sem notificação, já que não há quem avisar."""
+        hoje = timezone.now().date()
+        item = self._criar_item(
+            "100009", status=ItemConfiguracao.Status.EM_RESGUARDO,
+            nivel_cargo_desligado=ItemConfiguracao.NivelCargoDesligado.LIDERANCA,
+            data_inicio_resguardo=hoje - timedelta(days=31),
+        )
+
+        total = liberar_resguardos_vencidos()
+
+        item.refresh_from_db()
+        self.assertEqual(total, 1)
+        self.assertEqual(item.status, ItemConfiguracao.Status.RESGUARDO_LIBERADO)
+        self.assertEqual(Notificacao.objects.count(), 0)
+
 
 class CadastrarEquipamentoFormResguardoTests(TestCase):
     def setUp(self):
@@ -116,6 +167,31 @@ class CadastrarEquipamentoFormResguardoTests(TestCase):
     def test_status_em_uso_nao_exige_campos_de_resguardo(self):
         form = CadastrarEquipamentoForm(data=self._dados_base(status=ItemConfiguracao.Status.EM_USO))
         self.assertTrue(form.is_valid(), form.errors)
+
+
+class CadastrarEquipamentoFormNormalizaMarcaModeloTests(TestCase):
+    def setUp(self):
+        self.setor = Setor.objects.create(nome="Setor teste normalizar marca", peso_setor=3)
+
+    def _dados_base(self, **overrides):
+        dados = {
+            "patrimonio": "100007", "categoria": ItemConfiguracao.Categoria.COMPUTADOR,
+            "marca": "Marca", "modelo": "Modelo", "setor": self.setor.pk,
+            "status": ItemConfiguracao.Status.EM_USO,
+        }
+        dados.update(overrides)
+        return dados
+
+    def test_normaliza_maiusculas_minusculas_para_capitalizado(self):
+        form = CadastrarEquipamentoForm(data=self._dados_base(marca="dell", modelo="OPTIPLEX 3090"))
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["marca"], "Dell")
+        self.assertEqual(form.cleaned_data["modelo"], "Optiplex 3090")
+
+    def test_remove_espacos_nas_pontas(self):
+        form = CadastrarEquipamentoForm(data=self._dados_base(marca="  DELL  "))
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["marca"], "Dell")
 
 
 class ListarEquipamentosAcionaLiberacaoTests(TestCase):

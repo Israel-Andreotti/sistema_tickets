@@ -195,6 +195,13 @@ class DetalheTicketTransferenciaTemplateTests(TestCase):
         self.assertContains(resposta, "Solicitar chamado")
         self.assertNotContains(resposta, "Assumir chamado")
 
+    def test_card_mostra_avatar_com_iniciais_do_responsavel(self):
+        atribuir_tecnico(self.ticket, self.tecnico_a)
+        self.client.login(username="tecnico_b_template", password="senha-teste-123")
+        resposta = self.client.get(reverse("tickets:detalhe_ticket", args=[self.ticket.pk]))
+        self.assertContains(resposta, "avatar-circle")
+        self.assertContains(resposta, "TE")
+
     def test_com_solicitacao_pendente_tecnico_atual_ve_transferir_e_recusar(self):
         atribuir_tecnico(self.ticket, self.tecnico_a)
         solicitar_transferencia(self.ticket, solicitante=self.tecnico_b)
@@ -213,3 +220,59 @@ class DetalheTicketTransferenciaTemplateTests(TestCase):
         resposta = self.client.get(reverse("tickets:detalhe_ticket", args=[self.ticket.pk]))
         self.assertContains(resposta, "Solicitação de transferência pendente")
         self.assertNotContains(resposta, "Solicitar chamado")
+        self.assertContains(resposta, "Gerenciar")
+
+    def test_tecnico_sem_responsavel_ve_botao_atribuir_para_mim_direto(self):
+        """Pra técnico, o card usa um botão direto (sem abrir o modal) —
+        ver detalhe_ticket.html: só aparece "Gerenciar" quando já há
+        responsável (aí o modal segue existindo pro fluxo de solicitação)."""
+        self.client.login(username="tecnico_b_template", password="senha-teste-123")
+        resposta = self.client.get(reverse("tickets:detalhe_ticket", args=[self.ticket.pk]))
+        self.assertContains(resposta, "Atribuir para mim")
+
+    def test_tecnico_nao_ve_seletor_de_atribuicao_livre(self):
+        """O picker "Atribuir/Reatribuir para [qualquer técnico]" é a
+        atribuição direta pra outra pessoa que fica restrita a quem não é
+        técnico (gestor/superusuário) — ver a checagem de request.user.is_staff."""
+        atribuir_tecnico(self.ticket, self.tecnico_a)
+        self.client.login(username="tecnico_b_template", password="senha-teste-123")
+        resposta = self.client.get(reverse("tickets:detalhe_ticket", args=[self.ticket.pk]))
+        self.assertNotContains(resposta, "Selecione um técnico...")
+
+    def test_tecnico_com_responsavel_outro_solicita_direto_pelo_card(self):
+        """O botão "Solicitar chamado" do card (fora do modal) já é o form
+        de verdade — clicar nele deve criar a solicitação sem precisar
+        abrir "Gerenciar"."""
+        atribuir_tecnico(self.ticket, self.tecnico_a)
+        self.client.login(username="tecnico_b_template", password="senha-teste-123")
+        resposta = self.client.post(
+            reverse("tickets:solicitar_transferencia", args=[self.ticket.pk])
+        )
+        self.assertRedirects(resposta, reverse("tickets:detalhe_ticket", args=[self.ticket.pk]))
+        self.assertTrue(
+            self.ticket.solicitacoes_transferencia.filter(solicitante=self.tecnico_b).exists()
+        )
+
+    def test_tecnico_responsavel_sem_solicitacao_pendente_ve_gerenciar_e_tag_voce(self):
+        """Sem pendência, o card do próprio responsável não oferece
+        "Atribuir para mim"/"Solicitar chamado" (ele já é o responsável) —
+        mas mantém o botão "Gerenciar" pro alinhamento com os outros cards,
+        e mostra a tag "Atribuído a você"."""
+        atribuir_tecnico(self.ticket, self.tecnico_a)
+        self.client.login(username="tecnico_a_template", password="senha-teste-123")
+        resposta = self.client.get(reverse("tickets:detalhe_ticket", args=[self.ticket.pk]))
+        self.assertNotContains(resposta, "Atribuir para mim")
+        self.assertNotContains(resposta, "Solicitar chamado")
+        self.assertContains(resposta, "Gerenciar")
+        self.assertContains(resposta, "Atribuído a você")
+
+    def test_gestor_continua_vendo_seletor_de_atribuicao_livre(self):
+        gestor = get_user_model().objects.create_user(
+            username="gestor_teste_template", password="senha-teste-123",
+        )
+        self.setor.gestor = gestor
+        self.setor.save(update_fields=["gestor"])
+        atribuir_tecnico(self.ticket, self.tecnico_a)
+        self.client.login(username="gestor_teste_template", password="senha-teste-123")
+        resposta = self.client.get(reverse("tickets:detalhe_ticket", args=[self.ticket.pk]))
+        self.assertContains(resposta, "Selecione um técnico...")

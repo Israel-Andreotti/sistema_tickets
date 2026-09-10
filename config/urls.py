@@ -20,12 +20,21 @@ from django.contrib.auth import views as auth_views
 from django.urls import include, path
 from django.views.generic import RedirectView
 
-from tickets.forms import LoginForm
+from config.views import preview_erro_403, preview_erro_500
+from tickets.views import LoginView, confirmar_codigo_view, definir_nova_senha_view, esqueci_senha_view
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('accounts/login/', auth_views.LoginView.as_view(authentication_form=LoginForm), name='login'),
+    path('accounts/login/', LoginView.as_view(), name='login'),
     path('accounts/logout/', auth_views.LogoutView.as_view(), name='logout'),
+    path('accounts/esqueci-senha/', esqueci_senha_view, name='esqueci_senha'),
+    path('accounts/confirmar-codigo/', confirmar_codigo_view, name='confirmar_codigo'),
+    path('accounts/nova-senha/', definir_nova_senha_view, name='definir_nova_senha'),
+    # Só respondem fora de 404 quando DEBUG=True (checado dentro das views,
+    # não aqui) — servem pra pré-visualizar 403.html/500.html sem precisar
+    # provocar o erro de verdade.
+    path('preview-erro/403/', preview_erro_403, name='preview_erro_403'),
+    path('preview-erro/500/', preview_erro_500, name='preview_erro_500'),
     path('tickets/', include('tickets.urls')),
     path('', RedirectView.as_view(pattern_name='tickets:portal', permanent=False)),
 ]

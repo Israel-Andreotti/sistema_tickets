@@ -1,0 +1,38 @@
+{% extends "tickets/base.html" %}
+{% load static %}
+
+{% block title %}Esqueci minha senha — Chamados de TI{% endblock %}
+
+{% block sidebar %}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-5">
+        <div class="text-center mb-4">
+            <img src="{% static 'tickets/img/logo-full.png' %}" alt="Hospital Central São Lucas" style="max-width: 220px; width: 100%; height: auto;">
+        </div>
+        <div class="card shadow-sm">
+            <h1 class="h3 card-header text-center">Esqueci minha senha</h1>
+            <div class="card-body">
+                <p class="text-muted small">
+                    Informe seu usuário. Se ele tiver e-mail cadastrado, enviaremos um código de
+                    recuperação de 6 dígitos, válido por 15 minutos.
+                </p>
+
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="{{ form.username.id_for_label }}" class="form-label">Usuário</label>
+                        {{ form.username }}
+                        {% if form.username.errors %}
+                            <div class="text-danger small mt-1">{{ form.username.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    <button type="submit" class="btn btn-success">Enviar código</button>
+                    <a href="{% url 'login' %}" class="btn btn-link">Voltar ao login</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

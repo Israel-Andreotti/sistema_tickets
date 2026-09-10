@@ -48,6 +48,13 @@
     --bs-border-color: #2b3a52;
 }
 
+/* Fonte do sistema — Inter (carregada via Google Fonts em base.html/403.html/
+   500.html), com a pilha padrão do Bootstrap como fallback caso a fonte não
+   carregue por algum motivo (ex: sem internet na rede interna). */
+body {
+    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+}
+
 /* Bootstrap 5.3 resolve as cores dos botões a partir de variáveis
    próprias do componente (--bs-btn-bg etc.), não de --bs-primary
    diretamente — por isso precisam ser sobrescritas aqui, senão o
@@ -106,6 +113,64 @@ h1, h2, h3 { color: var(--brand); }
     margin-bottom: 0.15rem;
 }
 .kv-value { color: var(--value-strong); font-weight: 500; }
+
+/* ---- movimentação de equipamento (detalhe_ticket.html: modal "Movimentar
+   equipamento") — um patrimônio de cada vez é digitado, validado (consulta
+   assíncrona) e, se elegível, some pro campo e vira uma linha na lista
+   "Equipamentos neste atendimento". A direção (Saída/Entrada) é sempre
+   deduzida pelo setor/status atual do equipamento, nunca escolhida à mão.
+   Linhas já salvas no banco (pendentes de fechamento) vêm renderizadas pelo
+   Django (_movimentacao_item.html); linhas ainda só rascunho no navegador
+   são inseridas pelo mesmo JS que monta o payload de "Registrar
+   movimentação" — daí o CSS ser único pros dois casos. ---- */
+.mov-fila {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: 260px;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+}
+.mov-item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 0.6rem 0.75rem;
+    background: var(--card-bg);
+}
+.mov-item-remover {
+    border: none;
+    background: transparent;
+    color: var(--label-muted);
+    line-height: 1;
+    font-size: 1rem;
+    padding: 0.1rem 0.25rem;
+    flex-shrink: 0;
+}
+.mov-item-remover:hover {
+    color: var(--bs-danger);
+}
+.mov-preview-card {
+    border: 1px solid var(--card-border);
+    border-left: 3px solid var(--card-border);
+    border-radius: 8px;
+    padding: 0.6rem 0.75rem;
+    background: var(--card-bg);
+    margin-top: 0.5rem;
+}
+.mov-preview-card.mov-preview-erro {
+    border-left-color: var(--bs-danger);
+}
+.mov-preview-card.mov-preview-erro .mov-preview-motivo {
+    color: var(--bs-danger);
+}
+.mov-preview-ok {
+    color: var(--bs-success);
+    margin-top: 0.5rem;
+}
 .description-box {
     background: var(--stat-bg);
     border: 1px solid var(--card-border);
@@ -180,6 +245,11 @@ h1, h2, h3 { color: var(--brand); }
     height: 5rem;
     font-size: 1.7rem;
 }
+.avatar-circle-sm {
+    width: 1.5rem;
+    height: 1.5rem;
+    font-size: 0.6rem;
+}
 
 .comment-card {
     background: var(--stat-bg);
@@ -190,6 +260,7 @@ h1, h2, h3 { color: var(--brand); }
 }
 .comment-card.tipo-nota_interna { border-left-color: #ffc107; }
 .comment-card.tipo-resposta_usuario { border-left-color: #0dcaf0; }
+.comment-card.tipo-resposta_solicitante { border-left-color: #0d6efd; }
 .comment-card.tipo-desfecho { border-left-color: #198754; }
 
 /* ---- barra superior fixa: marca + tema + usuário, em toda página ---- */

@@ -22,4 +22,33 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             });
     }, 20000);
+
+    // Alternância lista/kanban — preferência salva no localStorage, mesmo
+    // mecanismo do tema claro/escuro (o atributo em <html> já vem certo
+    // desde tema-inicial.js; aqui só reflete isso nos botões e reage ao clique).
+    var botaoLista = document.getElementById('botaoVisualizacaoLista');
+    var botaoKanban = document.getElementById('botaoVisualizacaoKanban');
+
+    function aplicarVisualizacao(visualizacao) {
+        if (visualizacao === 'kanban') {
+            document.documentElement.setAttribute('data-fila-visualizacao', 'kanban');
+        } else {
+            document.documentElement.removeAttribute('data-fila-visualizacao');
+        }
+        botaoKanban.classList.toggle('btn-primary', visualizacao === 'kanban');
+        botaoKanban.classList.toggle('btn-outline-primary', visualizacao !== 'kanban');
+        botaoLista.classList.toggle('btn-primary', visualizacao !== 'kanban');
+        botaoLista.classList.toggle('btn-outline-primary', visualizacao === 'kanban');
+    }
+
+    aplicarVisualizacao(localStorage.getItem('filaVisualizacao') === 'kanban' ? 'kanban' : 'lista');
+
+    botaoLista.addEventListener('click', function () {
+        localStorage.setItem('filaVisualizacao', 'lista');
+        aplicarVisualizacao('lista');
+    });
+    botaoKanban.addEventListener('click', function () {
+        localStorage.setItem('filaVisualizacao', 'kanban');
+        aplicarVisualizacao('kanban');
+    });
 });

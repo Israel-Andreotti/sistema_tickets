@@ -1,11 +1,15 @@
+import json
 import re
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import get_user_model, update_session_auth_hash
+from django.contrib.auth import get_user_model, login, update_session_auth_hash
 from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth.views import LoginView as LoginViewBase
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Avg, Count, OuterRef, Q, Subquery
 from django.db.models.functions import TruncDate
 from django.http import JsonResponse
@@ -22,7 +26,12 @@ from .forms import (
     CadastrarEquipamentoForm,
     ComentarioForm,
     ConfirmarClassificacaoForm,
+    ConfirmarCodigoForm,
     EditarPerfilForm,
+    EsqueciSenhaForm,
+    LoginForm,
+    RedefinirSenhaForm,
+    ResponderTicketForm,
     RespostaRapidaForm,
     TrocarSenhaForm,
 )
@@ -60,9 +69,10 @@ from .services.equipamento import (
     registrar_sem_movimentacao,
     remover_movimentacao_pendente,
 )
-from .services.notificacoes import marcar_como_lida, marcar_todas_como_lidas, notificar
+from .services.notificacoes import marcar_como_lida, marcar_todas_como_lidas, notificar, notificar_usuario
 from .services.parametros import ParametroNaoConfigurado
 from .services.pausa import pausar_ticket, retomar_ticket
+from .services.recuperacao_senha import solicitar_codigo, validar_codigo
 from .services.sla import fechar_ticket, percentual_sla_consumido, prazo_ajustado
 
 def _tem_acesso_operacional(user):
@@ -76,14 +86,40 @@ def _tem_acesso_operacional(user):
     )
 
 
+def _pode_gerenciar_chamado(user, ticket):
+    """Classificar e fechar são ações de dono do chamado — só o técnico
+    responsável (ou quem não é técnico, ou seja, gestor/superusuário sem
+    is_staff) pode. Mesma lógica já aplicada à atribuição/transferência:
+    técnico só mexe no que é dele; gestor mantém controle total."""
+    return not user.is_staff or ticket.tecnico_responsavel_id == user.id
+
+
 tecnico_required = user_passes_test(_tem_acesso_operacional, login_url="login")
 acesso_equipamentos_required = tecnico_required
 ver_slas_required = tecnico_required
 
 
+class LoginView(LoginViewBase):
+    """"Manter conectado" desmarcado faz a sessão expirar ao fechar o
+    navegador — marcado, mantém a duração padrão do Django (SESSION_COOKIE_AGE,
+    2 semanas). Sem o checkbox, toda sessão já durava esse mesmo período."""
+
+    authentication_form = LoginForm
+
+    def form_valid(self, form):
+        resposta = super().form_valid(form)
+        if not form.cleaned_data.get("manter_conectado"):
+            self.request.session.set_expiry(0)
+        return resposta
+
+
 @login_required
 def portal_view(request):
-    return render(request, "tickets/portal.html")
+    # PEP/PMS viram link de pré-visualização das telas de erro (403/500)
+    # só em desenvolvimento — em produção, essas rotas de teste nem existem
+    # (config/urls.py só registra dentro do `if DEBUG`), então o template
+    # precisa saber disso pra não tentar gerar um link inválido.
+    return render(request, "tickets/portal.html", {"debug": settings.DEBUG})
 
 
 def obter_ip_cliente(request):
@@ -186,19 +222,47 @@ def meu_ticket_detalhe_view(request, pk):
     )
     comentarios = list(
         ticket.comentarios
-        .filter(tipo__in=[ComentarioTicket.Tipo.RESPOSTA_USUARIO, ComentarioTicket.Tipo.DESFECHO])
+        .filter(tipo__in=[
+            ComentarioTicket.Tipo.RESPOSTA_USUARIO,
+            ComentarioTicket.Tipo.RESPOSTA_SOLICITANTE,
+            ComentarioTicket.Tipo.DESFECHO,
+        ])
         .select_related("autor")
     )
     for comentario in comentarios:
         comentario.badge_classe, comentario.badge_emoji, comentario.badge_label = {
             "resposta_usuario": ("info", "💬", "Resposta ao usuário"),
+            "resposta_solicitante": ("primary", "🗨️", "Sua resposta"),
             "desfecho": ("success", "✅", "Desfecho / solução"),
         }[comentario.tipo]
 
     tipo_calculado = (ticket.categoria_final or ticket.categoria_sugerida).tipo
     return render(request, "tickets/meu_ticket_detalhe.html", {
         "ticket": ticket, "comentarios": comentarios, "tipo_calculado": tipo_calculado,
+        "form_resposta": ResponderTicketForm(),
     })
+
+
+@login_required
+@require_POST
+def responder_ticket_view(request, pk):
+    ticket = get_object_or_404(Ticket, pk=pk, solicitante=request.user)
+    form = ResponderTicketForm(request.POST)
+    if form.is_valid():
+        comentario = form.save(commit=False)
+        comentario.ticket = ticket
+        comentario.autor = request.user
+        comentario.tipo = ComentarioTicket.Tipo.RESPOSTA_SOLICITANTE
+        comentario.save()
+        if ticket.tecnico_responsavel_id:
+            notificar_usuario(
+                ticket.tecnico_responsavel, ticket, Notificacao.Tipo.NOVO_COMENTARIO,
+                f"{request.user.get_full_name() or request.user.username} respondeu no chamado {ticket.codigo}.",
+            )
+        messages.success(request, "Resposta enviada.")
+    else:
+        messages.error(request, "Escreva algo antes de enviar.")
+    return redirect("tickets:meu_ticket_detalhe", pk=pk)
 
 
 @login_required
@@ -305,6 +369,77 @@ def perfil_view(request, username):
     })
 
 
+@never_cache
+def esqueci_senha_view(request):
+    """Primeiro passo da recuperação de senha: usuário informa o nome de
+    usuário e recebe um código de 6 dígitos por e-mail (ver
+    services/recuperacao_senha.py). Sem link com token na URL porque o
+    sistema roda só na rede interna do hospital, sem domínio público."""
+    form = EsqueciSenhaForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        try:
+            usuario = get_user_model().objects.get(username=form.cleaned_data["username"])
+        except get_user_model().DoesNotExist:
+            form.add_error("username", "Usuário não encontrado.")
+        else:
+            try:
+                solicitar_codigo(usuario)
+            except ValueError:
+                form.add_error(
+                    "username",
+                    "Este usuário não tem e-mail cadastrado. Procure a equipe de TI para redefinir sua senha.",
+                )
+            else:
+                request.session["recuperacao_usuario_id"] = usuario.pk
+                messages.success(request, f"Enviamos um código de recuperação para {usuario.email}.")
+                return redirect("confirmar_codigo")
+
+    return render(request, "registration/esqueci_senha.html", {"form": form})
+
+
+@never_cache
+def confirmar_codigo_view(request):
+    """Segundo passo: valida o código de 6 dígitos recebido por e-mail. Se
+    válido, autentica o usuário e libera (só desta vez) a tela de definir
+    nova senha sem exigir a senha antiga."""
+    usuario_id = request.session.get("recuperacao_usuario_id")
+    if not usuario_id:
+        messages.error(request, "Solicite um novo código de recuperação.")
+        return redirect("esqueci_senha")
+    usuario = get_object_or_404(get_user_model(), pk=usuario_id)
+
+    form = ConfirmarCodigoForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        if validar_codigo(usuario, form.cleaned_data["codigo"]):
+            login(request, usuario, backend="django.contrib.auth.backends.ModelBackend")
+            del request.session["recuperacao_usuario_id"]
+            request.session["pode_definir_nova_senha"] = True
+            return redirect("definir_nova_senha")
+        form.add_error("codigo", "Código inválido ou expirado.")
+
+    return render(request, "registration/confirmar_codigo.html", {"form": form, "usuario": usuario})
+
+
+@login_required
+@never_cache
+def definir_nova_senha_view(request):
+    """Terceiro passo: define a nova senha, sem pedir a senha antiga — só
+    acessível logo depois de confirmar o código (flag de sessão abaixo),
+    nunca por qualquer usuário autenticado navegando direto pra cá."""
+    if not request.session.get("pode_definir_nova_senha"):
+        return redirect("tickets:perfil", username=request.user.username)
+
+    form = RedefinirSenhaForm(user=request.user, data=request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        update_session_auth_hash(request, request.user)
+        del request.session["pode_definir_nova_senha"]
+        messages.success(request, "Senha redefinida com sucesso.")
+        return redirect("tickets:portal")
+
+    return render(request, "registration/definir_nova_senha.html", {"form": form})
+
+
 def _filtrar_fila_tickets(request):
     """Aplica os filtros da tela de fila (setor, status, busca, data) e devolve
     o queryset resultante junto com os valores selecionados, para reaproveitar
@@ -324,6 +459,9 @@ def _filtrar_fila_tickets(request):
     data_de = request.GET.get("data_de", "").strip()
     data_ate = request.GET.get("data_ate", "").strip()
     atribuidos_a_mim = request.GET.get("atribuidos_a_mim") == "on"
+    ordenar = request.GET.get("ordenar", "").strip()
+    if ordenar not in ("prioridade", "sla", "recente", "antigo"):
+        ordenar = "prioridade"
 
     if setor_id:
         tickets_qs = tickets_qs.filter(setor_id=setor_id)
@@ -378,6 +516,7 @@ def _filtrar_fila_tickets(request):
         "data_de": data_de,
         "data_ate": data_ate,
         "atribuidos_a_mim": atribuidos_a_mim,
+        "ordenar_selecionado": ordenar,
         "querystring_todos": params_todos.urlencode(),
         "querystring_meus": params_meus.urlencode(),
         "meu_nivel": meu_nivel,
@@ -386,7 +525,10 @@ def _filtrar_fila_tickets(request):
         # nivel fica de fora daqui pelo mesmo motivo de atribuidos_a_mim: tem
         # atalho próprio fora do painel ("Meu nível"), não deve abrir o
         # painel de filtros avançados sozinho.
-        "algum_filtro": bool(setor_id or status or tipo or busca or data_de or data_ate),
+        "algum_filtro": bool(
+            setor_id or status or tipo or busca or data_de or data_ate
+            or (ordenar and ordenar != "prioridade")
+        ),
     }
     return tickets_qs, filtros
 
@@ -420,6 +562,10 @@ def _nivel_sla(percentual_consumido, prazo_estourado):
 
 @tecnico_required
 def fila_tickets_view(request):
+    # Checagem sob demanda (sem cron/Celery) — a fila é visitada com muito
+    # mais frequência que a tela de equipamentos, então libera resguardos
+    # vencidos (e notifica o técnico responsável) mais cedo na prática.
+    liberar_resguardos_vencidos()
     tickets_qs, filtros = _filtrar_fila_tickets(request)
     tickets = list(tickets_qs.order_by("-prioridade_calculada", "data_abertura"))
 
@@ -442,18 +588,26 @@ def fila_tickets_view(request):
             ticket.tempo_restante_texto = _tempo_restante_texto(ticket.prazo, agora)
         ticket.sla_nivel = _nivel_sla(ticket.percentual_sla_consumido, ticket.prazo_estourado)
 
-    # "Abertos" e "Em atendimento" são estado atual — não fazem sentido presos
-    # a uma janela de tempo (um chamado aberto há uma semana ainda está
-    # aberto agora, e precisa aparecer). "Fechados" foi movido pro Dashboard.
-    contagens = {
-        "aberto": Ticket.objects.filter(status=Ticket.Status.ABERTO).count(),
-        "em_atendimento": Ticket.objects.filter(status=Ticket.Status.EM_ATENDIMENTO).count(),
-        "pausado": Ticket.objects.filter(status=Ticket.Status.PAUSADO).count(),
+    # Reordena em Python, não no banco: `prazo` já vem ajustado pela pausa
+    # (services/sla.py: prazo_ajustado), calculado ticket a ticket acima —
+    # não dá pra levar isso pro SQL sem duplicar essa lógica lá.
+    ordenar = filtros["ordenar_selecionado"]
+    if ordenar == "sla":
+        tickets.sort(key=lambda t: t.prazo)
+    elif ordenar == "recente":
+        tickets.sort(key=lambda t: t.data_abertura, reverse=True)
+    elif ordenar == "antigo":
+        tickets.sort(key=lambda t: t.data_abertura)
+
+    tickets_por_status = {
+        "aberto": [t for t in tickets if t.status == Ticket.Status.ABERTO],
+        "em_atendimento": [t for t in tickets if t.status == Ticket.Status.EM_ATENDIMENTO],
+        "pausado": [t for t in tickets if t.status == Ticket.Status.PAUSADO],
     }
 
     return render(request, "tickets/fila_tickets.html", {
         "tickets": tickets,
-        "contagens": contagens,
+        "tickets_por_status": tickets_por_status,
         "setores": Setor.objects.order_by("nome"),
         "ultimo_id": max((t.pk for t in tickets), default=0),
         **filtros,
@@ -744,7 +898,7 @@ def _obter_ticket_detalhe(pk):
     )
 
 
-def _contexto_detalhe_ticket(ticket, *, patrimonio_saida_valor=None, patrimonio_entrada_valor=None):
+def _contexto_detalhe_ticket(ticket):
     categoria_inicial = ticket.categoria_final or ticket.categoria_ia or ticket.categoria_sugerida
     form = ConfirmarClassificacaoForm(initial={"categoria_final": categoria_inicial})
     if ticket.categoria_final:
@@ -756,6 +910,7 @@ def _contexto_detalhe_ticket(ticket, *, patrimonio_saida_valor=None, patrimonio_
         comentario.badge_classe, comentario.badge_emoji, comentario.badge_label = {
             "nota_interna": ("warning", "🔒", "Nota interna"),
             "resposta_usuario": ("info", "💬", "Resposta ao usuário"),
+            "resposta_solicitante": ("primary", "🗨️", "Resposta do solicitante"),
             "desfecho": ("success", "✅", "Desfecho / solução"),
         }[comentario.tipo]
     comentario_form = ComentarioForm()
@@ -765,19 +920,19 @@ def _contexto_detalhe_ticket(ticket, *, patrimonio_saida_valor=None, patrimonio_
             "autor", "equipamento_saida", "equipamento_entrada"
         )
     )
-    setor_ti = obter_setor_ti() if movimentacoes else None
+    setor_ti = obter_setor_ti()
     for mov in movimentacoes:
         if mov.sem_movimentacao:
             mov.badge_classe, mov.badge_label = "secondary", "Sem movimentação"
         elif mov.equipamento_saida and mov.equipamento_entrada:
-            mov.badge_classe, mov.badge_label = "info", "Substituído"
+            mov.badge_classe, mov.badge_label = "info", "Substituição"
         elif mov.equipamento_entrada:
-            mov.badge_classe, mov.badge_label = "success", "Vinculado"
+            mov.badge_classe, mov.badge_label = "success", "Entrada"
         else:
-            mov.badge_classe, mov.badge_label = "danger", "Retornado"
-        if not mov.aplicada and not mov.sem_movimentacao:
-            mov.badge_classe = "warning"
-            mov.badge_label += " (pendente)"
+            mov.badge_classe, mov.badge_label = "warning", "Saída"
+    movimentacoes_reais = [mov for mov in movimentacoes if not mov.sem_movimentacao]
+    movimentacoes_pendentes_count = sum(1 for mov in movimentacoes_reais if not mov.aplicada)
+    movimentacoes_aplicadas_count = len(movimentacoes_reais) - movimentacoes_pendentes_count
 
     return {
         "ticket": ticket,
@@ -794,9 +949,9 @@ def _contexto_detalhe_ticket(ticket, *, patrimonio_saida_valor=None, patrimonio_
         "comentarios": comentarios,
         "comentario_form": comentario_form,
         "movimentacoes": movimentacoes,
+        "movimentacoes_pendentes_count": movimentacoes_pendentes_count,
+        "movimentacoes_aplicadas_count": movimentacoes_aplicadas_count,
         "setor_ti": setor_ti,
-        "patrimonio_saida_valor": patrimonio_saida_valor,
-        "patrimonio_entrada_valor": patrimonio_entrada_valor,
         "tecnicos": get_user_model().objects.filter(is_staff=True, is_active=True).order_by("first_name", "username"),
         "respostas_rapidas": [
             {
@@ -815,7 +970,9 @@ def _contexto_detalhe_ticket(ticket, *, patrimonio_saida_valor=None, patrimonio_
 @never_cache
 def detalhe_ticket_view(request, pk):
     ticket = _obter_ticket_detalhe(pk)
-    return render(request, "tickets/detalhe_ticket.html", _contexto_detalhe_ticket(ticket))
+    contexto = _contexto_detalhe_ticket(ticket)
+    contexto["pode_gerenciar_chamado"] = _pode_gerenciar_chamado(request.user, ticket)
+    return render(request, "tickets/detalhe_ticket.html", contexto)
 
 
 @tecnico_required
@@ -847,6 +1004,9 @@ def adicionar_comentario_view(request, pk):
 @require_POST
 def classificar_ticket_view(request, pk):
     ticket = get_object_or_404(Ticket, pk=pk)
+    if not _pode_gerenciar_chamado(request.user, ticket):
+        messages.error(request, "Só o técnico responsável pelo chamado pode confirmar a classificação.")
+        return redirect("tickets:detalhe_ticket", pk=pk)
     form = ConfirmarClassificacaoForm(request.POST)
     if form.is_valid():
         confirmar_classificacao_final(ticket, form.cleaned_data["categoria_final"])
@@ -956,72 +1116,91 @@ def responder_transferencia_view(request, pk, solicitacao_pk):
 @require_POST
 def fechar_ticket_view(request, pk):
     ticket = get_object_or_404(Ticket, pk=pk)
-    if not ticket.movimentacao_confirmada and request.POST.get("confirmar_sem_movimentacao") == "on":
-        registrar_sem_movimentacao(ticket, autor=request.user)
+    if not _pode_gerenciar_chamado(request.user, ticket):
+        messages.error(request, "Só o técnico responsável pelo chamado pode fechá-lo.")
+        return redirect("tickets:detalhe_ticket", pk=pk)
     try:
-        fechar_ticket(ticket)
-        messages.success(request, f"Chamado {ticket.codigo} fechado.")
+        with transaction.atomic():
+            if not ticket.movimentacao_confirmada and request.POST.get("confirmar_sem_movimentacao") == "on":
+                registrar_sem_movimentacao(ticket, autor=request.user)
+            fechar_ticket(ticket)
     except ValueError as exc:
+        # Se fechar_ticket() falhar (ex: chamado pausado), a transação
+        # desfaz também o registrar_sem_movimentacao() acima — senão o
+        # chamado ficava com "movimentação confirmada" travado sem nunca
+        # ter fechado de fato.
         messages.error(request, str(exc))
+        return redirect("tickets:detalhe_ticket", pk=pk)
+
+    messages.success(request, f"Chamado {ticket.codigo} fechado.")
     return redirect("tickets:detalhe_ticket", pk=pk)
 
 
 @tecnico_required
 @require_POST
 def movimentar_equipamento_view(request, pk):
+    """Recebe uma lista de patrimônios (`itens`, JSON — ver detalhe_ticket.js:
+    fila montada no navegador, um patrimônio por vez, só enviada de fato ao
+    clicar em "Registrar movimentação") e registra uma MovimentacaoEquipamento
+    pendente por item. A direção (saída/entrada) é sempre deduzida aqui pelo
+    setor/status atual do equipamento — nunca confiada ao que o navegador
+    mandou —, exatamente a mesma regra usada pra pintar a prévia de validação
+    em consultar_equipamento_view."""
     ticket = _obter_ticket_detalhe(pk)
-    patrimonio_saida = request.POST.get("patrimonio_saida", "").strip()
-    patrimonio_entrada = request.POST.get("patrimonio_entrada", "").strip()
-    sem_movimentacao = request.POST.get("sem_movimentacao") == "on"
-
-    def falha(mensagem):
-        messages.error(request, mensagem)
-        contexto = _contexto_detalhe_ticket(
-            ticket,
-            patrimonio_saida_valor=patrimonio_saida,
-            patrimonio_entrada_valor=patrimonio_entrada,
-        )
-        return render(request, "tickets/detalhe_ticket.html", contexto)
-
-    if not patrimonio_saida and not patrimonio_entrada:
-        if not sem_movimentacao:
-            return falha(
-                "Informe o patrimônio de saída, de entrada, ou marque que não houve "
-                "movimentação de equipamento."
-            )
-        registrar_sem_movimentacao(ticket, autor=request.user)
-        messages.success(
-            request,
-            "Confirmado: nenhuma movimentação de equipamento foi necessária neste atendimento.",
-        )
+    itens_raw = request.POST.get("itens", "").strip()
+    if not itens_raw:
+        messages.error(request, "Adicione ao menos um equipamento antes de registrar a movimentação.")
         return redirect("tickets:detalhe_ticket", pk=pk)
 
-    equipamento_saida = None
-    if patrimonio_saida:
-        try:
-            equipamento_saida = ItemConfiguracao.objects.get(patrimonio=patrimonio_saida)
-        except ItemConfiguracao.DoesNotExist:
-            return falha(f"Patrimônio de saída \"{patrimonio_saida}\" não encontrado.")
-
-    equipamento_entrada = None
-    if patrimonio_entrada:
-        try:
-            equipamento_entrada = ItemConfiguracao.objects.get(patrimonio=patrimonio_entrada)
-        except ItemConfiguracao.DoesNotExist:
-            return falha(f"Patrimônio de entrada \"{patrimonio_entrada}\" não encontrado.")
-
     try:
-        registro = movimentar_equipamento(
-            ticket, autor=request.user,
-            equipamento_saida=equipamento_saida, equipamento_entrada=equipamento_entrada,
-        )
-    except ValueError as exc:
-        return falha(str(exc))
+        itens = json.loads(itens_raw)
+    except (TypeError, ValueError):
+        messages.error(request, "Não foi possível interpretar os itens enviados.")
+        return redirect("tickets:detalhe_ticket", pk=pk)
 
-    messages.success(
-        request,
-        f"{registro.descricao()} Fica pendente até o chamado ser fechado.",
-    )
+    acoes = []
+    for item in itens:
+        patrimonio = str(item.get("patrimonio", "")).strip()
+        try:
+            equipamento = ItemConfiguracao.objects.get(patrimonio=patrimonio)
+        except ItemConfiguracao.DoesNotExist:
+            messages.error(request, f'Patrimônio "{patrimonio}" não encontrado.')
+            return redirect("tickets:detalhe_ticket", pk=pk)
+
+        if equipamento_elegivel_para_saida(equipamento, ticket):
+            motivo_retorno = str(item.get("motivo_retorno", "")).strip()
+            nivel_cargo_desligado = str(item.get("nivel_cargo_desligado", "")).strip()
+            if motivo_retorno not in MovimentacaoEquipamento.MotivoRetorno.values:
+                messages.error(request, f'Selecione um motivo válido para o retorno do patrimônio "{patrimonio}".')
+                return redirect("tickets:detalhe_ticket", pk=pk)
+            if (
+                motivo_retorno == MovimentacaoEquipamento.MotivoRetorno.DESLIGAMENTO
+                and nivel_cargo_desligado not in ItemConfiguracao.NivelCargoDesligado.values
+            ):
+                messages.error(request, f'Selecione o cargo do funcionário desligado para o patrimônio "{patrimonio}".')
+                return redirect("tickets:detalhe_ticket", pk=pk)
+            acoes.append({
+                "equipamento_saida": equipamento,
+                "motivo_retorno": motivo_retorno,
+                "nivel_cargo_desligado": nivel_cargo_desligado or None,
+            })
+        elif equipamento_elegivel_para_entrada(equipamento):
+            acoes.append({"equipamento_entrada": equipamento})
+        else:
+            messages.error(request, f'Patrimônio "{patrimonio}" não está disponível para movimentação neste chamado.')
+            return redirect("tickets:detalhe_ticket", pk=pk)
+
+    registros = []
+    try:
+        with transaction.atomic():
+            for acao in acoes:
+                registros.append(movimentar_equipamento(ticket, autor=request.user, **acao))
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect("tickets:detalhe_ticket", pk=pk)
+
+    descricoes = " ".join(registro.descricao() for registro in registros)
+    messages.success(request, f"{descricoes} Fica(m) pendente(s) até o chamado ser fechado.")
     return redirect("tickets:detalhe_ticket", pk=pk)
 
 

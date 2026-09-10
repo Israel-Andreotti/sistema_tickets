@@ -158,6 +158,18 @@ class ItemConfiguracao(models.Model):
         null=True, blank=True,
         help_text="Data de desligamento do funcionário / início do resguardo",
     )
+    tecnico_responsavel_resguardo = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+",
+        help_text="Técnico que registrou o desligamento que colocou este equipamento em "
+                   "resguardo — avisado quando o prazo vence (ver "
+                   "services/equipamento.py: liberar_resguardos_vencidos)",
+    )
+    ticket_origem_resguardo = models.ForeignKey(
+        "Ticket", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+",
+        help_text="Chamado em que o retorno por desligamento foi registrado",
+    )
 
     @property
     def prazo_resguardo_dias(self):
@@ -295,12 +307,13 @@ class ContadorChamado(models.Model):
 
 
 class ComentarioTicket(models.Model):
-    """Troca de informações entre técnicos: atualizações, diagnóstico,
-    procedimento adotado — histórico interno do atendimento."""
+    """Histórico do atendimento: atualizações e diagnóstico entre técnicos,
+    respostas trocadas com o solicitante e o desfecho final."""
 
     class Tipo(models.TextChoices):
         NOTA_INTERNA = "nota_interna", "Nota interna"
         RESPOSTA_USUARIO = "resposta_usuario", "Resposta ao usuário"
+        RESPOSTA_SOLICITANTE = "resposta_solicitante", "Resposta do solicitante"
         DESFECHO = "desfecho", "Desfecho/solução final"
 
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="comentarios")
@@ -326,8 +339,11 @@ class RespostaRapida(models.Model):
     titulo = models.CharField(max_length=100, help_text="Nome curto, mostrado no botão de inserir")
     texto = models.TextField(help_text="Texto inserido no comentário ao clicar")
     tipo_padrao = models.CharField(
-        max_length=20, choices=ComentarioTicket.Tipo.choices, null=True, blank=True,
-        help_text="Se definido, já marca esse tipo de comentário ao inserir o template",
+        max_length=20,
+        choices=[c for c in ComentarioTicket.Tipo.choices if c[0] != ComentarioTicket.Tipo.RESPOSTA_SOLICITANTE],
+        null=True, blank=True,
+        help_text="Se definido, já marca esse tipo de comentário ao inserir o template — "
+                   "não inclui 'Resposta do solicitante', que só o solicitante pode usar",
     )
     grupo = models.CharField(
         max_length=20, choices=Categoria.Grupo.choices, null=True, blank=True,
@@ -467,6 +483,31 @@ class PerfilTecnico(models.Model):
         return f"{self.usuario} — {self.get_nivel_atendimento_display()}"
 
 
+class CodigoRecuperacaoSenha(models.Model):
+    """Código temporário de 6 dígitos para o fluxo de 'esqueci minha senha' —
+    enviado por e-mail (ver services/recuperacao_senha.py), substitui o link
+    com token do PasswordResetView padrão do Django porque o hospital não tem
+    um domínio público pra esse link apontar. Um código novo invalida
+    qualquer código anterior ainda não usado do mesmo usuário."""
+
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="codigos_recuperacao_senha"
+    )
+    codigo = models.CharField(max_length=6)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    expira_em = models.DateTimeField()
+    usado_em = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Código de recuperação de senha"
+        verbose_name_plural = "Códigos de recuperação de senha"
+        ordering = ["-criado_em"]
+
+    def __str__(self):
+        situacao = "usado" if self.usado_em else "em aberto"
+        return f"Código de {self.usuario} ({situacao})"
+
+
 class Notificacao(models.Model):
     """Aviso in-app pro solicitante: mudança de status do chamado ou resposta/
     desfecho do técnico. Fica guardada mesmo depois de lida — só o campo
@@ -477,6 +518,7 @@ class Notificacao(models.Model):
         NOVO_COMENTARIO = "novo_comentario", "Novo comentário"
         ESCALONAMENTO = "escalonamento", "Escalonamento"
         TRANSFERENCIA = "transferencia", "Transferência de chamado"
+        RESGUARDO_LIBERADO = "resguardo_liberado", "Resguardo liberado"
 
     destinatario = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notificacoes"
@@ -501,6 +543,11 @@ class MovimentacaoEquipamento(models.Model):
     """Histórico de cada movimentação de equipamento registrada num ticket —
     inclusive quando o técnico confirma que não houve nenhuma (RN27)."""
 
+    class MotivoRetorno(models.TextChoices):
+        FALTA = "falta", "Falta/defeito no equipamento"
+        DESLIGAMENTO = "desligamento", "Desligamento de colaborador"
+        TROCA_COMUM = "troca_comum", "Troca comum"
+
     ticket = models.ForeignKey(
         Ticket, on_delete=models.CASCADE, related_name="movimentacoes_equipamento"
     )
@@ -512,6 +559,16 @@ class MovimentacaoEquipamento(models.Model):
     equipamento_entrada = models.ForeignKey(
         ItemConfiguracao, on_delete=models.PROTECT, null=True, blank=True,
         related_name="movimentacoes_como_entrada",
+    )
+    motivo_retorno = models.CharField(
+        max_length=20, choices=MotivoRetorno.choices, null=True, blank=True,
+        help_text="Só quando há equipamento de saída (retornando pra TI)",
+    )
+    nivel_cargo_desligado = models.CharField(
+        max_length=20, choices=ItemConfiguracao.NivelCargoDesligado.choices, null=True, blank=True,
+        help_text="Só quando motivo_retorno=desligamento — define o prazo de resguardo "
+                   "aplicado automaticamente ao equipamento (ver services/equipamento.py: "
+                   "aplicar_movimentacoes_pendentes)",
     )
     sem_movimentacao = models.BooleanField(default=False)
     aplicada = models.BooleanField(

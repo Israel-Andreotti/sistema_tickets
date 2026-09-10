@@ -20,6 +20,31 @@
                 </a>
             {% endif %}
         </div>
+        <div class="btn-group" role="group" aria-label="Alternar entre lista e kanban">
+            <button
+                type="button" id="botaoVisualizacaoLista" data-visualizacao="lista"
+                title="Visualização em lista" aria-label="Visualização em lista"
+                class="btn btn-sm btn-primary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                    <line x1="8" y1="6" x2="21" y2="6"></line>
+                    <line x1="8" y1="12" x2="21" y2="12"></line>
+                    <line x1="8" y1="18" x2="21" y2="18"></line>
+                    <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                    <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                    <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                </svg>
+            </button>
+            <button
+                type="button" id="botaoVisualizacaoKanban" data-visualizacao="kanban"
+                title="Visualização em kanban" aria-label="Visualização em kanban"
+                class="btn btn-sm btn-outline-primary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <rect x="7" y="7" width="3" height="9" fill="currentColor" stroke="none"></rect>
+                    <rect x="14" y="7" width="3" height="5" fill="currentColor" stroke="none"></rect>
+                </svg>
+            </button>
+        </div>
         <button
             type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse"
             data-bs-target="#filtrosFila" aria-expanded="{% if algum_filtro %}true{% else %}false{% endif %}"
@@ -37,25 +62,6 @@
         <span id="textoNovosChamados" class="fw-semibold"></span>
     </span>
     <button type="button" class="btn btn-warning fw-semibold" onclick="window.location.reload()">Atualizar</button>
-</div>
-
-<p class="small text-muted mb-2">
-    Total atual, independente de filtro de período. Fechados e outros indicadores: aba de Dashboard.
-</p>
-
-<div class="row g-3 mb-4">
-    <div class="col-sm-6">
-        <div class="stat-card">
-            <div class="stat-label">Abertos agora</div>
-            <div class="stat-value">{{ contagens.aberto }}</div>
-        </div>
-    </div>
-    <div class="col-sm-6">
-        <div class="stat-card">
-            <div class="stat-label">Em atendimento agora</div>
-            <div class="stat-value">{{ contagens.em_atendimento }}</div>
-        </div>
-    </div>
 </div>
 
 <div class="collapse{% if algum_filtro %} show{% endif %}" id="filtrosFila">
@@ -111,6 +117,15 @@
             <label for="data_ate" class="form-label small mb-1">até</label>
             <input type="date" name="data_ate" id="data_ate" class="form-control form-control-sm" value="{{ data_ate }}">
         </div>
+        <div class="col-md-2">
+            <label for="ordenar" class="form-label small mb-1">Ordenar por</label>
+            <select name="ordenar" id="ordenar" class="form-select form-select-sm">
+                <option value="prioridade" {% if ordenar_selecionado == "prioridade" %}selected{% endif %}>Prioridade</option>
+                <option value="sla" {% if ordenar_selecionado == "sla" %}selected{% endif %}>Mais perto de estourar o SLA</option>
+                <option value="recente" {% if ordenar_selecionado == "recente" %}selected{% endif %}>Mais recente</option>
+                <option value="antigo" {% if ordenar_selecionado == "antigo" %}selected{% endif %}>Mais antigo</option>
+            </select>
+        </div>
         <div class="col-md-auto d-flex gap-2">
             <button type="submit" class="btn btn-primary btn-sm">Buscar</button>
             {% if algum_filtro %}
@@ -121,7 +136,46 @@
 </form>
 </div>
 
-<div class="table-responsive">
+<div id="filaKanban" class="kanban-board">
+    <div class="kanban-coluna">
+        <div class="kanban-coluna-titulo">
+            Aberto <span class="badge bg-secondary">{{ tickets_por_status.aberto|length }}</span>
+        </div>
+        <div class="kanban-coluna-corpo">
+            {% for ticket in tickets_por_status.aberto %}
+                {% include "tickets/_kanban_card.html" %}
+            {% empty %}
+                <p class="text-muted small text-center mb-0">Nenhum chamado.</p>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="kanban-coluna">
+        <div class="kanban-coluna-titulo">
+            Em atendimento <span class="badge bg-secondary">{{ tickets_por_status.em_atendimento|length }}</span>
+        </div>
+        <div class="kanban-coluna-corpo">
+            {% for ticket in tickets_por_status.em_atendimento %}
+                {% include "tickets/_kanban_card.html" %}
+            {% empty %}
+                <p class="text-muted small text-center mb-0">Nenhum chamado.</p>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="kanban-coluna">
+        <div class="kanban-coluna-titulo">
+            Pausado <span class="badge bg-secondary">{{ tickets_por_status.pausado|length }}</span>
+        </div>
+        <div class="kanban-coluna-corpo">
+            {% for ticket in tickets_por_status.pausado %}
+                {% include "tickets/_kanban_card.html" %}
+            {% empty %}
+                <p class="text-muted small text-center mb-0">Nenhum chamado.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div id="filaLista" class="table-responsive">
     <table class="table table-hover align-middle ticket-table">
         <thead>
             <tr>

@@ -45,8 +45,16 @@
                         <div class="text-danger small mb-3">Usuário ou senha inválidos.</div>
                     {% endif %}
 
+                    <div class="form-check mb-3">
+                        {{ form.manter_conectado }}
+                        <label for="{{ form.manter_conectado.id_for_label }}" class="form-check-label">
+                            Manter conectado
+                        </label>
+                    </div>
+
                     <input type="hidden" name="next" value="{{ next }}">
                     <button type="submit" class="btn btn-success">Entrar</button>
+                    <a href="{% url 'esqueci_senha' %}" class="btn btn-link">Esqueci minha senha</a>
                 </form>
             </div>
         </div>

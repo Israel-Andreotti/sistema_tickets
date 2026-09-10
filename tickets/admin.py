@@ -3,6 +3,7 @@ from django.contrib import admin
 from .models import (
     ArtigoConhecimento,
     Categoria,
+    CodigoRecuperacaoSenha,
     ComentarioTicket,
     EscalonamentoTicket,
     ExcecaoPrioridade,
@@ -62,6 +63,9 @@ class ItemConfiguracaoAdmin(admin.ModelAdmin):
     list_filter = ("status", "categoria", "setor")
     search_fields = ("patrimonio", "marca", "modelo")
     autocomplete_fields = ("setor",)
+    # Só o fluxo de movimentação do chamado (aplicar_movimentacoes_pendentes)
+    # deve preencher isso — impede edição manual acidental pelo admin.
+    readonly_fields = ("tecnico_responsavel_resguardo", "ticket_origem_resguardo")
 
     @admin.display(description="Fim do resguardo")
     def data_fim_resguardo(self, obj):
@@ -213,6 +217,21 @@ class PausaSLAAdmin(admin.ModelAdmin):
     list_filter = ("motivo",)
     autocomplete_fields = ("ticket", "autor")
     readonly_fields = ("ticket", "autor", "motivo", "observacao", "iniciada_em", "finalizada_em")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(CodigoRecuperacaoSenha)
+class CodigoRecuperacaoSenhaAdmin(admin.ModelAdmin):
+    # O campo "codigo" fica de fora de propósito — mesmo de curta duração,
+    # não deve ficar visível pra quem tem acesso ao admin.
+    list_display = ("usuario", "criado_em", "expira_em", "usado_em")
+    readonly_fields = ("usuario", "criado_em", "expira_em", "usado_em")
+    exclude = ("codigo",)
 
     def has_add_permission(self, request):
         return False
