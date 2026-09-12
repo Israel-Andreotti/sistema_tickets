@@ -103,6 +103,7 @@ class TicketAdmin(admin.ModelAdmin):
         "setor",
         "categoria_sugerida",
         "categoria_ia",
+        "confianca_ia",
         "categoria_final",
         "impacto",
         "status",

@@ -69,6 +69,7 @@ from .services.equipamento import (
     registrar_sem_movimentacao,
     remover_movimentacao_pendente,
 )
+from .services.ia import classificar_ticket_em_segundo_plano
 from .services.notificacoes import marcar_como_lida, marcar_todas_como_lidas, notificar, notificar_usuario
 from .services.parametros import ParametroNaoConfigurado
 from .services.pausa import pausar_ticket, retomar_ticket
@@ -148,6 +149,10 @@ def abrir_ticket_view(request):
                 solicitante_ip=obter_ip_cliente(request),
                 impacto=form.cleaned_data["impacto"],
             )
+            # RN02: a IA opina sobre a descrição em paralelo, sem segurar a
+            # confirmação — se ela falhar ou demorar, o chamado já está aberto
+            # e o técnico apenas não verá o palpite dela na dupla checagem.
+            classificar_ticket_em_segundo_plano(ticket)
             messages.success(
                 request,
                 format_html(

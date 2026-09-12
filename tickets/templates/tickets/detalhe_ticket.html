@@ -421,7 +421,15 @@
                     </div>
                     <div class="compare-box">
                         <div class="kv-label">Categoria classificada pela IA</div>
-                        <div class="kv-value">{{ ticket.categoria_ia|default:"ainda não classificado pela IA" }}</div>
+                        <div class="kv-value">
+                            {{ ticket.categoria_ia|default:"ainda não classificado pela IA" }}
+                            {% if ticket.categoria_ia and ticket.confianca_ia %}
+                                <span class="badge rounded-pill text-bg-light border ms-1 fw-normal"
+                                      title="O quanto o modelo confia neste palpite. Abaixo do mínimo configurado, o palpite seria descartado.">
+                                    {{ ticket.confianca_ia|confianca_pct }} de confiança
+                                </span>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
 

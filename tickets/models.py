@@ -214,6 +214,11 @@ class Ticket(models.Model):
         related_name="tickets_como_classificada_ia", null=True, blank=True,
         help_text="Categoria determinada pelo modelo de IA a partir da descrição",
     )
+    confianca_ia = models.DecimalField(
+        max_digits=5, decimal_places=4, null=True, blank=True,
+        help_text="Confiança do classificador na categoria_ia, de 0 a 1 — mostrada ao "
+                   "técnico na dupla checagem pra ele saber o quanto levar o palpite a sério",
+    )
     categoria_final = models.ForeignKey(
         Categoria, on_delete=models.PROTECT,
         related_name="tickets_como_final", null=True, blank=True,
