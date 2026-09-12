@@ -49,3 +49,15 @@ def prioridade_classe(valor):
         if valor >= limite:
             return classe
     return "bg-success"
+
+
+@register.filter
+def confianca_pct(valor):
+    """Confiança da IA (0 a 1) como percentual inteiro, pro técnico ler de
+    relance: 0.8732 -> "87%"."""
+    if valor is None:
+        return "—"
+    try:
+        return f"{round(float(valor) * 100)}%"
+    except (TypeError, ValueError):
+        return "—"

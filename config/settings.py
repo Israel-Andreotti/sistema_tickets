@@ -152,6 +152,13 @@ EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='Chamados de TI <no-reply@hospital.local>')
 
+# Classificador de IA (RN02) — serviço HTTP separado, ver a pasta classificador/.
+# Vazio (o padrão) desliga a integração: o sistema roda normalmente, só sem o
+# palpite da IA na dupla checagem. O limiar de confiança NÃO fica aqui — é
+# regra de negócio, e mora em ParametroSistema (chave ia_confianca_minima).
+IA_CLASSIFICADOR_URL = config('IA_CLASSIFICADOR_URL', default='')
+IA_CLASSIFICADOR_TIMEOUT = config('IA_CLASSIFICADOR_TIMEOUT', default=30, cast=int)
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 

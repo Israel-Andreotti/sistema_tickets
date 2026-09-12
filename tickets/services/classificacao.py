@@ -61,10 +61,17 @@ def abrir_ticket(
     )
 
 
-def registrar_classificacao_ia(ticket: Ticket, categoria_ia: Categoria) -> Ticket:
-    """RN02: grava a categoria inferida pelo modelo de IA a partir da descrição."""
+def registrar_classificacao_ia(
+    ticket: Ticket, categoria_ia: Categoria, *, confianca=None
+) -> Ticket:
+    """RN02: grava a categoria inferida pelo modelo de IA a partir da descrição.
+
+    A confiança é opcional porque quem grava nem sempre a tem — a integração
+    (services/ia.py) sempre passa; uma correção manual pelo Admin, não.
+    """
     ticket.categoria_ia = categoria_ia
-    ticket.save(update_fields=["categoria_ia"])
+    ticket.confianca_ia = confianca
+    ticket.save(update_fields=["categoria_ia", "confianca_ia"])
     return ticket
 
 

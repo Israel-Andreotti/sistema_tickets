@@ -21,7 +21,7 @@ feito pelo Django Admin, sem alterar uma linha de código.
 - **Sanitização de HTML**: `bleach` (conteúdo da base de conhecimento)
 - **Desenvolvimento**: `django-debug-toolbar` (carregada só quando `DEBUG=True`)
 - **Classificador de IA**: Hugging Face `mDeBERTa-v3-base-mnli-xnli` (zero-shot),
-  em desenvolvimento separado — ainda não integrado a este projeto Django
+  num serviço HTTP separado (FastAPI) — ver `classificador/`
 
 ## Estrutura do projeto
 
@@ -37,10 +37,12 @@ tickets/                   # app principal
   context_processors.py    # papel do usuário e contador de notificações nos templates
   services/                # camada de negócio (RN01–RN17 + serviços auxiliares)
   templatetags/            # filtros usados nos templates
+  management/commands/     # comandos de manutenção (classificar_pendentes)
   migrations/              # schema + seeds de dados (catálogos, parâmetros, equipamentos)
   tests/                   # 199 testes automatizados
   templates/               # templates HTML (tickets/ e registration/)
   static/tickets/          # CSS, JS e imagens próprios
+classificador/             # serviço HTTP do classificador de IA (FastAPI + transformers)
 docs/diagrama_er.html      # diagrama ER do modelo de dados
 ```
 
@@ -88,7 +90,7 @@ para N2/N3 pelo Admin.
 
 - **Ticket** — o chamado. Mantém três categorias separadas:
   - `categoria_sugerida`: escolhida pelo solicitante ao abrir;
-  - `categoria_ia`: inferida pelo classificador (ainda não populada);
+  - `categoria_ia`: inferida pelo classificador, com a `confianca_ia` do palpite;
   - `categoria_final`: confirmada/corrigida pelo técnico — é essa que alimenta SLA e
     prioridade.
 
@@ -178,6 +180,7 @@ Resumo da lógica:
 | `services/notificacoes.py` | notificações in-app para solicitante e para técnicos de um nível |
 | `services/recuperacao_senha.py` | geração/validação do código de 6 dígitos por e-mail |
 | `services/parametros.py` | leitura de `ParametroSistema` com cache e invalidação por signal |
+| `services/ia.py` | ponte com o classificador de IA: contrato HTTP, limiar de confiança e disparo em segundo plano |
 
 **Resguardo de equipamento**: quando o técnico registra o retorno de um equipamento por
 desligamento de colaborador, o equipamento entra em resguardo automaticamente — 30 dias
@@ -185,6 +188,45 @@ para liderança, 15 dias para os demais cargos. Vencido o prazo,
 `liberar_resguardos_vencidos()` libera o equipamento para formatação e notifica o
 técnico que registrou. A varredura roda ao carregar a fila e a lista de equipamentos —
 não há agendador (cron/Celery) no projeto.
+
+## Classificação por IA (RN02)
+
+O modelo **não** roda dentro do Django. Ele fica num serviço HTTP separado, na pasta
+`classificador/` — assim o `torch` fica fora do deploy do sistema, o modelo é carregado
+uma vez (e não uma cópia por worker), e pode rodar noutra máquina. Veja
+`classificador/README.md` para subir o serviço.
+
+O caminho de um chamado:
+
+1. o solicitante envia o formulário e **recebe a confirmação na hora** — a classificação
+   não segura a resposta;
+2. em seguida, numa thread, o Django manda a descrição e **o catálogo inteiro de
+   categorias** para o serviço (`tickets/services/ia.py`);
+3. o serviço monta uma hipótese por categoria ("Este chamado de suporte de TI é sobre
+   {categoria}") e devolve a vencedora com sua confiança;
+4. o Django valida o id contra o banco e, se a confiança alcançar o parâmetro
+   `ia_confianca_minima`, grava `categoria_ia` e `confianca_ia`;
+5. o técnico vê o palpite e a confiança ao lado da escolha do solicitante, na dupla
+   checagem — e decide a `categoria_final`, que é a única que alimenta SLA e prioridade.
+
+Duas consequências de projeto valem ser ditas:
+
+- **As categorias vão do Django para o serviço, nunca o contrário.** O classificador não
+  tem catálogo próprio, então uma categoria criada no Admin já é classificável no
+  próximo chamado, sem retreino e sem tocar no serviço. É o mesmo princípio das demais
+  regras deste projeto.
+- **A IA é um extra, não um pré-requisito.** Com `IA_CLASSIFICADOR_URL` vazia, ou com o
+  serviço fora do ar, o chamado abre normalmente e fica sem palpite — o técnico vê
+  "ainda não classificado pela IA", que é um estado que o sistema já sabia tratar.
+
+Quando o serviço esteve fora do ar, nada tenta de novo sozinho. Para recuperar os
+chamados que ficaram sem palpite:
+
+```bash
+python manage.py classificar_pendentes            # os 50 mais antigos ainda abertos
+python manage.py classificar_pendentes --limite 200
+python manage.py classificar_pendentes --incluir-fechados
+```
 
 ## Telas implementadas
 
@@ -251,6 +293,8 @@ e inclua o IP da máquina em `ALLOWED_HOSTS`.
 | `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` | conexão PostgreSQL |
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, `DEFAULT_FROM_EMAIL` | relay SMTP (Brevo) usado na recuperação de senha |
 | `EMAIL_BACKEND` | opcional; em desenvolvimento, `django.core.mail.backends.console.EmailBackend` imprime o e-mail no terminal em vez de enviar |
+| `IA_CLASSIFICADOR_URL` | endereço do serviço de classificação; **vazio desliga a integração** e o sistema roda sem o palpite da IA |
+| `IA_CLASSIFICADOR_TIMEOUT` | segundos de espera pelo classificador (padrão: 30) |
 
 ## Testes
 
@@ -258,12 +302,19 @@ e inclua o IP da máquina em `ALLOWED_HOSTS`.
 python manage.py test tickets
 ```
 
-**199 testes**, cobrindo os cinco blocos de serviço (prioridade, classificação, SLA,
-desvio, recomendação) e também níveis de atendimento, notificações, transferência,
-pausa de SLA, resguardo e movimentação de equipamento, respostas rápidas, filtros da
-fila, permissões, código do chamado, tipo de chamado, login, recuperação de senha e
-páginas de erro. Usam o banco de teste do Postgres — o role do `.env` precisa de
+**217 testes**, cobrindo os cinco blocos de serviço (prioridade, classificação, SLA,
+desvio, recomendação) e também a integração de IA, níveis de atendimento, notificações,
+transferência, pausa de SLA, resguardo e movimentação de equipamento, respostas rápidas,
+filtros da fila, permissões, código do chamado, tipo de chamado, login, recuperação de
+senha e páginas de erro. Usam o banco de teste do Postgres — o role do `.env` precisa de
 permissão `CREATEDB`.
+
+O serviço de IA tem os testes dele à parte, que não exigem o modelo:
+
+```bash
+pip install fastapi pydantic httpx pytest
+pytest classificador/test_servico.py
+```
 
 ## Dados semeados (migrations)
 
@@ -278,7 +329,7 @@ recomendação — todos editáveis depois pelo Admin, sem precisar rodar migrat
 - **2 modelos de resposta rápida** — `0041_seed_respostas_rapidas`, agrupados em `0043`.
 - **Parâmetros e regras** — `0003_seed_parametros_e_regras` (limiares de desvio, janela,
   volume mínimo e as regras "atenção"/"crítico"), `0012_seed_parametro_setor_ti` e
-  `0035_seed_fatores_prioridade_tipo`.
+  `0035_seed_fatores_prioridade_tipo` e `0055_seed_parametro_confianca_ia`.
 
 Parâmetros semeados hoje:
 
@@ -291,15 +342,17 @@ Parâmetros semeados hoje:
 | `fator_prioridade_incidente` | 1.0 | multiplicador de prioridade para Incidente |
 | `fator_prioridade_requisicao` | 1.0 | multiplicador de prioridade para Requisição |
 | `setor_ti_id` | 49 | setor de TI para onde o equipamento substituído retorna |
+| `ia_confianca_minima` | 0.30 | confiança mínima para aceitar o palpite do classificador |
 
 Os pesos, SLAs e limiares desses seeds são valores propostos para servirem de ponto de
 partida — ajustáveis pelo Admin conforme os dados reais do hospital.
 
 ## Pendências conhecidas
 
-- **Integração do classificador de IA**: `registrar_classificacao_ia()` já existe e é
-  testada, mas nenhuma view a chama — o mDeBERTa roda separado, lendo Excel, e
-  `categoria_ia` continua vazia em produção.
+- **Calibrar o classificador**: a integração está pronta e testada, mas o limiar
+  `ia_confianca_minima` (0.30) é um chute inicial — precisa ser ajustado pelo Admin
+  depois de observar chamados reais. A qualidade das classificações do mDeBERTa em
+  português, no vocabulário deste catálogo, ainda não foi medida.
 - **Motor de recomendação sem gatilho e sem tela**: `gerar_recomendacoes()` está
   implementado e testado, mas só é chamado nos testes; não há agendamento nem tela que
   exiba as `Recomendacao` geradas ao gestor.
