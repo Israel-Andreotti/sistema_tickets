@@ -36,10 +36,14 @@ class SetorAdmin(admin.ModelAdmin):
 @admin.register(Categoria)
 class CategoriaAdmin(admin.ModelAdmin):
     list_display = (
-        "nome", "grupo", "tipo", "nivel_atendimento", "peso_categoria", "sla_horas", "requer_patrimonio",
+        "nome", "grupo", "tipo", "nivel_atendimento", "peso_categoria", "sla_horas",
+        "requer_patrimonio", "ativo", "habilita_criacao_usuario",
     )
-    list_editable = ("peso_categoria", "sla_horas", "requer_patrimonio", "tipo", "nivel_atendimento")
-    list_filter = ("grupo", "tipo", "nivel_atendimento", "requer_patrimonio")
+    list_editable = (
+        "peso_categoria", "sla_horas", "requer_patrimonio", "tipo", "nivel_atendimento",
+        "ativo", "habilita_criacao_usuario",
+    )
+    list_filter = ("grupo", "tipo", "nivel_atendimento", "requer_patrimonio", "ativo", "habilita_criacao_usuario")
     search_fields = ("nome",)
     ordering = ("grupo", "nome")
 

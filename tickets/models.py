@@ -80,6 +80,16 @@ class Categoria(models.Model):
         default=False,
         help_text="Se marcado, a abertura do chamado exige o número de patrimônio do equipamento",
     )
+    ativo = models.BooleanField(
+        default=True,
+        help_text="Categorias inativas somem da abertura de chamado, mas continuam no "
+                   "Admin e no histórico de tickets que já as usaram",
+    )
+    habilita_criacao_usuario = models.BooleanField(
+        default=False,
+        help_text="Se marcado, a tela do chamado mostra um formulário pra criar a conta "
+                   "do novo usuário ao resolver (ex: categoria de admissão)",
+    )
 
     class Meta:
         verbose_name = "Categoria"
@@ -244,6 +254,11 @@ class Ticket(models.Model):
     item_configuracao = models.ForeignKey(
         ItemConfiguracao, on_delete=models.SET_NULL, null=True, blank=True,
         help_text="Equipamento do CMDB relacionado ao ticket, quando aplicável",
+    )
+    usuario_criado = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="ticket_origem_criacao",
+        help_text="Usuário criado a partir deste chamado, se a categoria habilitar criação de usuário",
     )
     movimentacao_confirmada = models.BooleanField(
         default=False,

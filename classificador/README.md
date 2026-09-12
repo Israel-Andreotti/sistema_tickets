@@ -42,6 +42,9 @@ uvicorn classificador.servico:app --host 0.0.0.0 --port 8001
 A primeira execução baixa ~1,1 GB de pesos do Hugging Face para
 `~/.cache/huggingface`. Depois disso o serviço roda offline.
 
+Com o venv já criado, `start_dev.bat` (na raiz do projeto) sobe este serviço
+junto com o Django, cada um na sua janela.
+
 Aponte o Django para ele no `.env`:
 
 ```

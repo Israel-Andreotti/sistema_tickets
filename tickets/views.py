@@ -27,6 +27,7 @@ from .forms import (
     ComentarioForm,
     ConfirmarClassificacaoForm,
     ConfirmarCodigoForm,
+    CriarUsuarioAdmissaoForm,
     EditarPerfilForm,
     EsqueciSenhaForm,
     LoginForm,
@@ -75,6 +76,7 @@ from .services.parametros import ParametroNaoConfigurado
 from .services.pausa import pausar_ticket, retomar_ticket
 from .services.recuperacao_senha import solicitar_codigo, validar_codigo
 from .services.sla import fechar_ticket, percentual_sla_consumido, prazo_ajustado
+from .services.usuarios import criar_usuario_admissao
 
 def _tem_acesso_operacional(user):
     """Acesso operacional pleno ao sistema — fila, histórico, base de conhecimento,
@@ -135,16 +137,16 @@ def obter_ip_cliente(request):
 @login_required
 def abrir_ticket_view(request):
     if request.method == "POST":
-        form = AbrirTicketForm(request.POST, user=request.user)
+        form = AbrirTicketForm(request.POST)
         if form.is_valid():
             ticket = abrir_ticket(
                 categoria_sugerida=form.cleaned_data["categoria_sugerida"],
                 setor=form.cleaned_data["setor"],
                 descricao=form.cleaned_data["descricao"],
                 solicitante=request.user,
-                solicitante_nome=form.cleaned_data["solicitante_nome"],
+                solicitante_nome=request.user.get_full_name() or request.user.username,
                 solicitante_ramal=form.cleaned_data["solicitante_ramal"],
-                solicitante_sala=form.cleaned_data["solicitante_sala"],
+                solicitante_sala="",
                 item_configuracao=form.cleaned_data.get("item_configuracao"),
                 solicitante_ip=obter_ip_cliente(request),
                 impacto=form.cleaned_data["impacto"],
@@ -163,7 +165,7 @@ def abrir_ticket_view(request):
             )
             return redirect("tickets:abrir_ticket")
     else:
-        form = AbrirTicketForm(user=request.user)
+        form = AbrirTicketForm()
 
     return render(request, "tickets/abrir_ticket.html", {"form": form})
 
@@ -905,7 +907,9 @@ def _obter_ticket_detalhe(pk):
 
 def _contexto_detalhe_ticket(ticket):
     categoria_inicial = ticket.categoria_final or ticket.categoria_ia or ticket.categoria_sugerida
-    form = ConfirmarClassificacaoForm(initial={"categoria_final": categoria_inicial})
+    form = ConfirmarClassificacaoForm(
+        initial={"categoria_final": categoria_inicial}, categoria_atual_id=categoria_inicial.pk,
+    )
     if ticket.categoria_final:
         # Já confirmado — trava o campo (e o botão, no template) pra não dar
         # a entender que dá pra mudar a categoria sem reabrir o chamado.
@@ -941,6 +945,8 @@ def _contexto_detalhe_ticket(ticket):
 
     return {
         "ticket": ticket,
+        "categoria_atual": categoria_inicial,
+        "form_criar_usuario": CriarUsuarioAdmissaoForm(),
         "tipo_calculado": (ticket.categoria_final or ticket.categoria_sugerida).tipo,
         "niveis_disponiveis_escalonamento": niveis_acima(ticket.nivel_atual),
         "escalonamentos": list(ticket.escalonamentos.select_related("autor")),
@@ -1012,12 +1018,39 @@ def classificar_ticket_view(request, pk):
     if not _pode_gerenciar_chamado(request.user, ticket):
         messages.error(request, "Só o técnico responsável pelo chamado pode confirmar a classificação.")
         return redirect("tickets:detalhe_ticket", pk=pk)
-    form = ConfirmarClassificacaoForm(request.POST)
+    categoria_atual = ticket.categoria_final or ticket.categoria_ia or ticket.categoria_sugerida
+    form = ConfirmarClassificacaoForm(request.POST, categoria_atual_id=categoria_atual.pk)
     if form.is_valid():
         confirmar_classificacao_final(ticket, form.cleaned_data["categoria_final"])
         messages.success(request, "Classificação confirmada e prioridade recalculada.")
     else:
         messages.error(request, "Selecione uma categoria válida.")
+    return redirect("tickets:detalhe_ticket", pk=pk)
+
+
+@tecnico_required
+@require_POST
+def criar_usuario_admissao_view(request, pk):
+    ticket = get_object_or_404(Ticket, pk=pk)
+    if not _pode_gerenciar_chamado(request.user, ticket):
+        messages.error(request, "Só o técnico responsável pelo chamado pode criar o usuário.")
+        return redirect("tickets:detalhe_ticket", pk=pk)
+
+    categoria_atual = ticket.categoria_final or ticket.categoria_ia or ticket.categoria_sugerida
+    if not categoria_atual.habilita_criacao_usuario:
+        messages.error(request, "A categoria deste chamado não habilita criação de usuário.")
+        return redirect("tickets:detalhe_ticket", pk=pk)
+
+    form = CriarUsuarioAdmissaoForm(request.POST)
+    if form.is_valid():
+        try:
+            usuario = criar_usuario_admissao(ticket, **form.cleaned_data)
+        except ValueError as exc:
+            messages.error(request, str(exc))
+        else:
+            messages.success(request, f'Usuário "{usuario.username}" criado com sucesso.')
+    else:
+        messages.error(request, "Corrija os erros no formulário de criação de usuário.")
     return redirect("tickets:detalhe_ticket", pk=pk)
 
 

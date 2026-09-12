@@ -34,6 +34,7 @@ urlpatterns = [
     path("modelos-resposta/<int:pk>/editar/", views.editar_resposta_rapida_view, name="editar_resposta_rapida"),
     path("tecnico/<int:pk>/", views.detalhe_ticket_view, name="detalhe_ticket"),
     path("tecnico/<int:pk>/classificar/", views.classificar_ticket_view, name="classificar_ticket"),
+    path("tecnico/<int:pk>/criar-usuario/", views.criar_usuario_admissao_view, name="criar_usuario_admissao"),
     path("tecnico/<int:pk>/escalar/", views.escalar_ticket_view, name="escalar_ticket"),
     path("tecnico/<int:pk>/pausar/", views.pausar_ticket_view, name="pausar_ticket"),
     path("tecnico/<int:pk>/retomar/", views.retomar_ticket_view, name="retomar_ticket"),

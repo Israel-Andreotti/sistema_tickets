@@ -34,10 +34,12 @@
                         <div class="kv-label">Ramal</div>
                         <div class="kv-value">{{ ticket.solicitante_ramal }}</div>
                     </div>
+                    {% if ticket.solicitante_sala %}
                     <div>
                         <div class="kv-label">Sala</div>
                         <div class="kv-value">{{ ticket.solicitante_sala }}</div>
                     </div>
+                    {% endif %}
                     <div>
                         <div class="kv-label">IP de origem</div>
                         <div class="kv-value">{{ ticket.solicitante_ip|default:"não capturado" }}</div>
@@ -457,6 +459,53 @@
                 </form>
             </div>
         </div>
+
+        {% if categoria_atual.habilita_criacao_usuario %}
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <h2 class="h6 mb-3">Criação de usuário</h2>
+                {% if ticket.usuario_criado %}
+                    <div class="text-success small">
+                        ✓ Usuário <strong>{{ ticket.usuario_criado.username }}</strong>
+                        ({{ ticket.usuario_criado.get_full_name }} — {{ ticket.usuario_criado.email }}) criado.
+                        A pessoa já pode definir a própria senha em "Esqueci minha senha".
+                    </div>
+                {% else %}
+                    <form method="post" action="{% url 'tickets:criar_usuario_admissao' ticket.pk %}" novalidate>
+                        {% csrf_token %}
+                        <div class="row g-2">
+                            <div class="col-md-3">
+                                <label for="{{ form_criar_usuario.first_name.id_for_label }}" class="form-label small mb-1">{{ form_criar_usuario.first_name.label }}</label>
+                                {{ form_criar_usuario.first_name }}
+                                {% for error in form_criar_usuario.first_name.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-3">
+                                <label for="{{ form_criar_usuario.last_name.id_for_label }}" class="form-label small mb-1">{{ form_criar_usuario.last_name.label }}</label>
+                                {{ form_criar_usuario.last_name }}
+                                {% for error in form_criar_usuario.last_name.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-3">
+                                <label for="{{ form_criar_usuario.username.id_for_label }}" class="form-label small mb-1">{{ form_criar_usuario.username.label }}</label>
+                                {{ form_criar_usuario.username }}
+                                {% for error in form_criar_usuario.username.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-3">
+                                <label for="{{ form_criar_usuario.email.id_for_label }}" class="form-label small mb-1">{{ form_criar_usuario.email.label }}</label>
+                                {{ form_criar_usuario.email }}
+                                {% for error in form_criar_usuario.email.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm mt-3" {% if not pode_gerenciar_chamado %}disabled{% endif %}>
+                            Criar usuário
+                        </button>
+                        {% if not pode_gerenciar_chamado %}
+                            <div class="form-text mt-1">Só o técnico responsável pode criar o usuário.</div>
+                        {% endif %}
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
 
         <!-- Modal: Movimentar equipamento -->
         <div class="modal fade" id="modalEquipamento" tabindex="-1" aria-labelledby="modalEquipamentoLabel" aria-hidden="true">

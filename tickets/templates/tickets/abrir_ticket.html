@@ -26,17 +26,7 @@
                     <h2 class="h6 text-muted text-uppercase small mb-2" style="letter-spacing: 0.05em;">Suas informações</h2>
 
                     <div class="row">
-                        <div class="col-md-3 mb-2">
-                            <label for="{{ form.solicitante_nome.id_for_label }}" class="form-label">
-                                {{ form.solicitante_nome.label }} <span class="text-danger">*</span>
-                            </label>
-                            {{ form.solicitante_nome }}
-                            {% for error in form.solicitante_nome.errors %}
-                                <div class="text-danger small">{{ error }}</div>
-                            {% endfor %}
-                        </div>
-
-                        <div class="col-md-3 mb-2">
+                        <div class="col-md-6 mb-2">
                             <label for="{{ form.solicitante_ramal.id_for_label }}" class="form-label">
                                 {{ form.solicitante_ramal.label }} <span class="text-danger">*</span>
                             </label>
@@ -46,17 +36,7 @@
                             {% endfor %}
                         </div>
 
-                        <div class="col-md-3 mb-2">
-                            <label for="{{ form.solicitante_sala.id_for_label }}" class="form-label">
-                                {{ form.solicitante_sala.label }} <span class="text-danger">*</span>
-                            </label>
-                            {{ form.solicitante_sala }}
-                            {% for error in form.solicitante_sala.errors %}
-                                <div class="text-danger small">{{ error }}</div>
-                            {% endfor %}
-                        </div>
-
-                        <div class="col-md-3 mb-2 position-relative">
+                        <div class="col-md-6 mb-2 position-relative">
                             <label for="setorBusca" class="form-label">
                                 {{ form.setor.label }} <span class="text-danger">*</span>
                             </label>

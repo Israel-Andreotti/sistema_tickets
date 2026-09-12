@@ -283,6 +283,21 @@ Acesse `http://127.0.0.1:8000/` (redireciona para o portal, pedindo login) ou
 Para acessar de outra máquina da rede, rode com `python manage.py runserver 0.0.0.0:8000`
 e inclua o IP da máquina em `ALLOWED_HOSTS`.
 
+### Subindo os dois serviços de uma vez (Windows)
+
+O classificador de IA (`classificador/`) é opcional e roda separado do Django
+(ver `IA_CLASSIFICADOR_URL` na tabela abaixo e `classificador/README.md` para
+o setup do venv dele). Depois que os dois venvs (`.venv` e `.venv-ia`) já
+estiverem criados e com as dependências instaladas, `start_dev.bat` sobe os
+dois de uma vez, cada um na sua janela:
+
+```bash
+start_dev.bat
+```
+
+Sem o classificador rodando, o sistema funciona normalmente — só sem o
+palpite da IA na dupla checagem.
+
 ### Variáveis de ambiente (`.env`)
 
 | Variável | Descrição |

@@ -7,3 +7,4 @@ staticfiles/
 media/
 .claude/settings.local.json
 docs/
+.venv-ia/

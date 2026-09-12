@@ -3,6 +3,7 @@ from bleach.css_sanitizer import CSSSanitizer
 from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm, SetPasswordForm
+from django.db.models import Q
 from django.utils.html import strip_tags
 
 from .models import (
@@ -33,10 +34,15 @@ ARTIGO_CSS_PERMITIDO = CSSSanitizer(
 )
 
 
-def _categorias_agrupadas():
+def _categorias_agrupadas(incluir_pk=None):
     """Opções de categoria agrupadas por grupo (categoria "pai"), alfabéticas
-    dentro de cada grupo. Retorna (choices_para_optgroup, requer_patrimonio_por_id)."""
-    categorias = list(Categoria.objects.order_by("grupo", "nome"))
+    dentro de cada grupo. Só lista categorias ativas — exceto `incluir_pk`,
+    que mantém visível a categoria já associada a um registro existente
+    (ticket/artigo) mesmo que tenha virado inativa depois. Retorna
+    (choices_para_optgroup, requer_patrimonio_por_id)."""
+    categorias = list(
+        Categoria.objects.filter(Q(ativo=True) | Q(pk=incluir_pk)).order_by("grupo", "nome")
+    )
     grupo_labels = dict(Categoria.Grupo.choices)
 
     agrupadas = []
@@ -60,12 +66,13 @@ def _categorias_agrupadas():
 
 def _categorias_meta():
     """Metadados por categoria (grupo e requer_patrimonio), usados pelo select
-    de categoria de AbrirTicketForm para priorizar por grupo via JS."""
+    de categoria de AbrirTicketForm para priorizar por grupo via JS. Só
+    categorias ativas — a abertura de chamado nunca usa uma inativa."""
     return {
         str(categoria.pk): {
             "grupo": categoria.grupo, "requer_patrimonio": categoria.requer_patrimonio,
         }
-        for categoria in Categoria.objects.all()
+        for categoria in Categoria.objects.filter(ativo=True)
     }
 
 
@@ -89,19 +96,9 @@ class CategoriaSelect(forms.Select):
 
 
 class AbrirTicketForm(forms.Form):
-    solicitante_nome = forms.CharField(
-        label="Nome",
-        error_messages={"required": "Informe seu nome."},
-        widget=forms.TextInput(attrs={"class": "form-control"}),
-    )
     solicitante_ramal = forms.CharField(
         label="Ramal",
         error_messages={"required": "Informe o ramal."},
-        widget=forms.TextInput(attrs={"class": "form-control"}),
-    )
-    solicitante_sala = forms.CharField(
-        label="Sala",
-        error_messages={"required": "Informe a sala."},
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
     setor = forms.ModelChoiceField(
@@ -118,7 +115,7 @@ class AbrirTicketForm(forms.Form):
         help_text="Ajuda a encontrar a categoria certa na lista abaixo.",
     )
     categoria_sugerida = forms.ModelChoiceField(
-        queryset=Categoria.objects.order_by("nome"),
+        queryset=Categoria.objects.filter(ativo=True).order_by("nome"),
         label="Categoria específica",
         error_messages={"required": "Selecione uma categoria."},
     )
@@ -145,17 +142,15 @@ class AbrirTicketForm(forms.Form):
         widget=forms.Textarea(attrs={"class": "form-control", "rows": 3, "style": "resize: vertical;"}),
     )
 
-    def __init__(self, *args, user=None, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if user is not None:
-            self.fields["solicitante_nome"].initial = user.get_full_name() or user.username
         self.fields["grupo"].choices = [("", "Selecione um grupo...")] + list(Categoria.Grupo.choices)
         self.fields["categoria_sugerida"].widget = CategoriaSelect(
             attrs={"class": "form-select"}, categorias_meta=_categorias_meta()
         )
         categorias_ordenadas = [
             (str(categoria.pk), categoria.nome)
-            for categoria in Categoria.objects.order_by("nome")
+            for categoria in Categoria.objects.filter(ativo=True).order_by("nome")
         ]
         self.fields["categoria_sugerida"].choices = [("", "Sobre o que é seu problema?")] + categorias_ordenadas
 
@@ -188,10 +183,46 @@ class ConfirmarClassificacaoForm(forms.Form):
         widget=forms.Select(attrs={"class": "form-select"}),
     )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, categoria_atual_id=None, **kwargs):
         super().__init__(*args, **kwargs)
-        choices, _ = _categorias_agrupadas()
+        # Só categorias ativas — exceto a que o chamado já está usando, que
+        # continua selecionável/visível mesmo se tiver virado inativa depois.
+        self.fields["categoria_final"].queryset = Categoria.objects.filter(
+            Q(ativo=True) | Q(pk=categoria_atual_id)
+        ).order_by("grupo", "nome")
+        choices, _ = _categorias_agrupadas(incluir_pk=categoria_atual_id)
         self.fields["categoria_final"].choices = choices
+
+
+class CriarUsuarioAdmissaoForm(forms.Form):
+    """Formulário do card "Criação de usuário" na tela do chamado — só
+    aparece quando a categoria do chamado tem `habilita_criacao_usuario`
+    marcado. E-mail é obrigatório porque é o que a pessoa vai usar depois
+    pra definir a própria senha (ver services/recuperacao_senha.py)."""
+
+    first_name = forms.CharField(
+        label="Nome", error_messages={"required": "Informe o nome."},
+        widget=forms.TextInput(attrs={"class": "form-control form-control-sm"}),
+    )
+    last_name = forms.CharField(
+        label="Sobrenome", error_messages={"required": "Informe o sobrenome."},
+        widget=forms.TextInput(attrs={"class": "form-control form-control-sm"}),
+    )
+    username = forms.CharField(
+        label="Usuário (login)", error_messages={"required": "Informe o nome de usuário."},
+        widget=forms.TextInput(attrs={"class": "form-control form-control-sm"}),
+    )
+    email = forms.EmailField(
+        label="E-mail",
+        error_messages={"required": "Informe o e-mail.", "invalid": "Informe um e-mail válido."},
+        widget=forms.EmailInput(attrs={"class": "form-control form-control-sm"}),
+    )
+
+    def clean_username(self):
+        username = self.cleaned_data["username"].strip()
+        if get_user_model().objects.filter(username=username).exists():
+            raise forms.ValidationError("Já existe um usuário com esse nome de login.")
+        return username
 
 
 class ComentarioForm(forms.ModelForm):
@@ -346,7 +377,13 @@ class ArtigoForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        choices, _ = _categorias_agrupadas()
+        # Só categorias ativas — exceto a que o artigo já usa (se estiver
+        # editando), que continua selecionável mesmo se tiver virado inativa.
+        categoria_atual_id = self.instance.categoria_id
+        self.fields["categoria"].queryset = Categoria.objects.filter(
+            Q(ativo=True) | Q(pk=categoria_atual_id)
+        )
+        choices, _ = _categorias_agrupadas(incluir_pk=categoria_atual_id)
         self.fields["categoria"].choices = [("", "Nenhuma categoria relacionada")] + choices
 
     def clean_conteudo(self):
