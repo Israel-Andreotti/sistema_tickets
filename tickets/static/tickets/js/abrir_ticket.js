@@ -72,9 +72,39 @@ document.addEventListener('DOMContentLoaded', function () {
     var setorSelect = document.getElementById('id_setor');
     var setorBusca = document.getElementById('setorBusca');
     var setorSugestoes = document.getElementById('setorSugestoes');
+
+    // Tira acento pra comparar: sem isso, "internacao" não acha "Internação"
+    // nem "pre-natal" acha "Pré-Natal" — e quem abre chamado com pressa
+    // raramente digita acento.
+    // NFD separa a letra do acento, e \p{Mn} (marca de combinação sem
+    // largura) remove só o acento. A propriedade Unicode evita ter que
+    // escrever a faixa U+0300-U+036F, que fica invisível no editor.
+    function normalizarBusca(texto) {
+        return texto.normalize('NFD').replace(/\p{Mn}/gu, '').toLowerCase();
+    }
+
     var opcoesSetor = Array.prototype.slice.call(setorSelect.options, 1).map(function (opcao) {
-        return { valor: opcao.value, texto: opcao.text };
+        return {
+            valor: opcao.value,
+            texto: opcao.text,
+            normalizado: normalizarBusca(opcao.text),
+        };
     });
+
+    // Casa só no começo do nome: digitar "p" traz "Patrimônio" e "Psicologia",
+    // e não mais "Higienização e Limpeza" (que só tem "p" no meio de uma
+    // palavra). Lista curta e previsível, ao custo de exigir que a pessoa
+    // comece pelo início do nome do setor.
+    // A ordem alfabética vem do próprio <select> (queryset ordenado por nome),
+    // então basta filtrar preservando a ordem.
+    function filtrarSetores(consulta) {
+        var termo = normalizarBusca(consulta.trim());
+        if (!termo) return [];
+        return opcoesSetor.filter(function (item) {
+            return item.normalizado.indexOf(termo) === 0;
+        });
+    }
+
     var itensAtuais = [];
     var indiceAtivo = -1;
 
@@ -102,7 +132,13 @@ document.addEventListener('DOMContentLoaded', function () {
         indiceAtivo = -1;
         setorSugestoes.innerHTML = '';
         if (!lista.length) {
-            fecharSugestoesSetor();
+            // itensAtuais fica vazio de propósito: o handler de teclado sai
+            // cedo quando não há itens, então este aviso nunca é "navegável".
+            var vazio = document.createElement('div');
+            vazio.className = 'menu-flutuante-vazio';
+            vazio.textContent = 'Nenhum setor encontrado.';
+            setorSugestoes.appendChild(vazio);
+            setorSugestoes.classList.remove('d-none');
             return;
         }
         lista.forEach(function (item) {
@@ -121,14 +157,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     setorBusca.addEventListener('input', function () {
         setorSelect.value = '';
-        var termo = setorBusca.value.trim().toLowerCase();
-        if (!termo) {
+        var consulta = setorBusca.value.trim();
+        if (!consulta) {
             fecharSugestoesSetor();
             return;
         }
-        renderizarSugestoesSetor(opcoesSetor.filter(function (item) {
-            return item.texto.toLowerCase().indexOf(termo) !== -1;
-        }));
+        renderizarSugestoesSetor(filtrarSetores(consulta));
     });
 
     setorBusca.addEventListener('keydown', function (evento) {

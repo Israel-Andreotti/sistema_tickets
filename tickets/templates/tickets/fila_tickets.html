@@ -12,10 +12,16 @@
     <h1 class="h4 mb-0">Fila de chamados</h1>
     <div class="d-flex align-items-center gap-2">
         <div class="btn-group" role="group" aria-label="Alternar entre todos os chamados e os meus">
-            <a href="?{{ querystring_todos }}" class="btn btn-sm {% if not atribuidos_a_mim %}btn-primary{% else %}btn-outline-primary{% endif %}">Todos</a>
+            {% comment %}
+            Exatamente um dos três fica aceso: "Todos" só quando nenhum filtro
+            do grupo está ativo, e "Meu nível" cede a vez pra "Meus chamados"
+            quando os dois coincidem (dá pra chegar nisso pelo painel de
+            filtros avançados, que tem o seu próprio select de nível).
+            {% endcomment %}
+            <a href="?{{ querystring_todos }}" class="btn btn-sm {% if not atribuidos_a_mim and not filtrando_meu_nivel %}btn-primary{% else %}btn-outline-primary{% endif %}">Todos</a>
             <a href="?{{ querystring_meus }}" class="btn btn-sm {% if atribuidos_a_mim %}btn-primary{% else %}btn-outline-primary{% endif %}">Meus chamados</a>
             {% if meu_nivel %}
-                <a href="?{{ querystring_meu_nivel }}" class="btn btn-sm {% if filtrando_meu_nivel %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                <a href="?{{ querystring_meu_nivel }}" class="btn btn-sm {% if filtrando_meu_nivel and not atribuidos_a_mim %}btn-primary{% else %}btn-outline-primary{% endif %}">
                     Meu nível ({{ meu_nivel|upper }})
                 </a>
             {% endif %}

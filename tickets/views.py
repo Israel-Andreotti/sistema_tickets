@@ -78,22 +78,35 @@ from .services.recuperacao_senha import solicitar_codigo, validar_codigo
 from .services.sla import fechar_ticket, percentual_sla_consumido, prazo_ajustado
 from .services.usuarios import criar_usuario_admissao
 
+def _e_gestor_da_ti(user):
+    """Gestor do setor de TI — na prática, o administrador do sistema (mesmo
+    critério do rótulo em _cargo_usuario). Ser gestor de qualquer outro setor
+    não dá nenhum acesso especial: essa pessoa é um usuário comum, que só
+    enxerga os próprios chamados."""
+    try:
+        setor_ti_id = obter_setor_ti().pk
+    except (ParametroNaoConfigurado, Setor.DoesNotExist):
+        return False
+    return Setor.objects.filter(pk=setor_ti_id, gestor=user).exists()
+
+
 def _tem_acesso_operacional(user):
     """Acesso operacional pleno ao sistema — fila, histórico, base de conhecimento,
-    SLA por categoria e ações em chamados: técnicos, gestores de setor e
-    superusuários têm todos o mesmo nível de acesso aqui. O Django admin (/admin/)
-    é a única área que continua exclusiva a superusuários (is_staff sozinho não
-    concede acesso a ele, e gestores não recebem is_staff)."""
+    SLA por categoria e ações em chamados: técnicos, gestor da TI e superusuários.
+    O gestor de um setor que não é a TI fica de fora de propósito — ele responde
+    pelo setor dele no mundo real, mas dentro do sistema tem o mesmo acesso de um
+    usuário comum. O Django admin (/admin/) é a única área que continua exclusiva
+    a superusuários (is_staff sozinho não concede acesso a ele)."""
     return user.is_authenticated and (
-        user.is_staff or user.is_superuser or Setor.objects.filter(gestor=user).exists()
+        user.is_staff or user.is_superuser or _e_gestor_da_ti(user)
     )
 
 
 def _pode_gerenciar_chamado(user, ticket):
     """Classificar e fechar são ações de dono do chamado — só o técnico
-    responsável (ou quem não é técnico, ou seja, gestor/superusuário sem
-    is_staff) pode. Mesma lógica já aplicada à atribuição/transferência:
-    técnico só mexe no que é dele; gestor mantém controle total."""
+    responsável (ou quem chegou aqui sem ser técnico, ou seja, gestor da TI /
+    superusuário) pode. Mesma lógica já aplicada à atribuição/transferência:
+    técnico só mexe no que é dele; quem é administrador mantém controle total."""
     return not user.is_staff or ticket.tecnico_responsavel_id == user.id
 
 
@@ -211,12 +224,26 @@ def meus_tickets_view(request):
             erro = "Nenhum chamado seu encontrado nesse período."
             resultados = None
 
+    # Sem busca nenhuma, a tela já mostra os chamados em andamento de quem
+    # está logado — ninguém precisa ter anotado o código pra acompanhar o
+    # próprio chamado. Mesma regra de sempre: cada um só enxerga os seus
+    # (filtro por solicitante), e os fechados continuam só pela busca.
+    ativos = None
+    if resultados is None:
+        ativos = (
+            Ticket.objects.filter(solicitante=request.user)
+            .exclude(status=Ticket.Status.FECHADO)
+            .select_related("categoria_sugerida", "categoria_final", "setor")
+            .order_by("-data_abertura")
+        )
+
     return render(request, "tickets/meus_tickets.html", {
         "numero": numero,
         "data_de": data_de,
         "data_ate": data_ate,
         "erro": erro,
         "resultados": resultados,
+        "ativos": ativos,
     })
 
 
@@ -1285,10 +1312,9 @@ def consultar_equipamento_view(request):
 def listar_equipamentos_view(request):
     liberar_resguardos_vencidos()
 
-    if request.user.is_staff:
-        equipamentos = ItemConfiguracao.objects.select_related("setor")
-    else:
-        equipamentos = ItemConfiguracao.objects.filter(setor__gestor=request.user).select_related("setor")
+    # Quem chega aqui já passou por acesso_equipamentos_required, ou seja: é
+    # técnico, gestor da TI ou superusuário — todos enxergam o CMDB inteiro.
+    equipamentos = ItemConfiguracao.objects.select_related("setor")
 
     patrimonio = request.GET.get("patrimonio", "").strip()
     categoria = request.GET.get("categoria", "").strip()
@@ -1344,8 +1370,8 @@ def cadastrar_equipamento_view(request):
 @login_required
 def editar_equipamento_view(request, pk):
     equipamento = get_object_or_404(ItemConfiguracao.objects.select_related("setor"), pk=pk)
-    pode_editar = request.user.is_staff or equipamento.setor.gestor_id == request.user.id
-    if not pode_editar:
+    # Ser gestor do setor do equipamento não basta — o CMDB é da TI.
+    if not _tem_acesso_operacional(request.user):
         raise PermissionDenied
 
     if request.method == "POST":

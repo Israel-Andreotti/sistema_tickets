@@ -4,12 +4,13 @@ from django.urls import reverse
 
 from tickets.models import Categoria, Setor, Ticket
 from tickets.services.classificacao import abrir_ticket, atribuir_tecnico, confirmar_classificacao_final
+from tickets.services.equipamento import obter_setor_ti
 
 
 class PermissaoGerenciarChamadoTests(TestCase):
     """Classificar e fechar são ações de dono do chamado: só o técnico
-    responsável (ou um gestor/superusuário sem is_staff) pode. Ver
-    _pode_gerenciar_chamado em views.py."""
+    responsável (ou o gestor da TI / superusuário, que são administradores)
+    pode. Ver _pode_gerenciar_chamado em views.py."""
 
     def setUp(self):
         self.tecnico_a = get_user_model().objects.create_user(
@@ -49,12 +50,13 @@ class PermissaoGerenciarChamadoTests(TestCase):
         self.ticket.refresh_from_db()
         self.assertEqual(self.ticket.categoria_final, self.categoria)
 
-    def test_gestor_consegue_classificar_mesmo_sem_ser_responsavel(self):
+    def test_gestor_da_ti_consegue_classificar_mesmo_sem_ser_responsavel(self):
         gestor = get_user_model().objects.create_user(
             username="gestor_permissao_classificar", password="senha-teste-123",
         )
-        self.setor.gestor = gestor
-        self.setor.save(update_fields=["gestor"])
+        setor_ti = obter_setor_ti()
+        setor_ti.gestor = gestor
+        setor_ti.save(update_fields=["gestor"])
         self.client.login(username="gestor_permissao_classificar", password="senha-teste-123")
         resposta = self.client.post(
             reverse("tickets:classificar_ticket", args=[self.ticket.pk]),
@@ -87,13 +89,14 @@ class PermissaoGerenciarChamadoTests(TestCase):
         self.ticket.refresh_from_db()
         self.assertEqual(self.ticket.status, Ticket.Status.FECHADO)
 
-    def test_gestor_consegue_fechar_mesmo_sem_ser_responsavel(self):
+    def test_gestor_da_ti_consegue_fechar_mesmo_sem_ser_responsavel(self):
         confirmar_classificacao_final(self.ticket, self.categoria)
         gestor = get_user_model().objects.create_user(
             username="gestor_permissao_fechar", password="senha-teste-123",
         )
-        self.setor.gestor = gestor
-        self.setor.save(update_fields=["gestor"])
+        setor_ti = obter_setor_ti()
+        setor_ti.gestor = gestor
+        setor_ti.save(update_fields=["gestor"])
         self.client.login(username="gestor_permissao_fechar", password="senha-teste-123")
         resposta = self.client.post(
             reverse("tickets:fechar_ticket", args=[self.ticket.pk]),

@@ -9,36 +9,43 @@
             <div class="card-body">
                 <h1 class="h4 card-title mb-0">Consultar chamado</h1>
                 <p class="subtitulo-institucional mb-1">Central de Serviços de Tecnologia da Informação — HCSL</p>
-                <p class="text-muted small mb-3">Digite o número do chamado que você abriu para ver o andamento.</p>
+                <p class="text-muted small mb-3">
+                    Seus chamados em andamento aparecem logo abaixo. Use a busca para
+                    encontrar um chamado específico ou já fechado.
+                </p>
 
+                {% comment %}
+                Um formulário só, com um botão só: código e período são dois
+                jeitos de fazer a mesma busca, e a view já trata os dois na
+                mesma requisição GET. Preenchendo o código, ele tem
+                precedência (é busca exata) e o período é ignorado — por isso
+                o texto de ajuda pede pra deixar o código em branco.
+                {% endcomment %}
                 <form method="get" novalidate>
-                    <label for="numero" class="form-label">Código do chamado</label>
-                    <div class="input-group">
+                    <div class="mb-3">
+                        <label for="numero" class="form-label">Código do chamado</label>
                         <input
                             type="text" name="numero" id="numero"
                             class="form-control" placeholder="Ex: INC42" value="{{ numero }}" autofocus>
-                        <button type="submit" class="btn btn-primary">Buscar</button>
                     </div>
-                </form>
 
-                <hr class="my-4">
+                    <p class="text-muted small mb-2">
+                        Não sabe o código? Deixe o campo acima em branco e busque
+                        pela data em que abriu o chamado.
+                    </p>
 
-                <p class="text-muted small mb-2">Não sabe o número? Busque pela data em que abriu o chamado.</p>
-
-                <form method="get" novalidate>
-                    <div class="row g-2 align-items-end">
+                    <div class="row g-2">
                         <div class="col-6">
                             <label for="data_de" class="form-label small mb-1">De</label>
-                            <input type="date" name="data_de" id="data_de" class="form-control form-control-sm" value="{{ data_de }}">
+                            <input type="date" name="data_de" id="data_de" class="form-control" value="{{ data_de }}">
                         </div>
                         <div class="col-6">
                             <label for="data_ate" class="form-label small mb-1">Até</label>
-                            <input type="date" name="data_ate" id="data_ate" class="form-control form-control-sm" value="{{ data_ate }}">
-                        </div>
-                        <div class="col-12 mt-2">
-                            <button type="submit" class="btn btn-primary btn-sm">Buscar por data</button>
+                            <input type="date" name="data_ate" id="data_ate" class="form-control" value="{{ data_ate }}">
                         </div>
                     </div>
+
+                    <button type="submit" class="btn btn-primary mt-3">Buscar</button>
                 </form>
 
                 {% if erro %}
@@ -59,19 +66,29 @@
                 <h2 class="h6 mb-3">Chamados encontrados no período</h2>
                 <div class="d-flex flex-column gap-2">
                     {% for ticket in resultados %}
-                    <a href="{% url 'tickets:meu_ticket_detalhe' ticket.pk %}" class="card card-body text-decoration-none text-reset py-2">
-                        <div class="d-flex justify-content-between align-items-center gap-3">
-                            <div>
-                                <div class="fw-semibold">{{ ticket.codigo }} — {{ ticket.categoria_final|default:ticket.categoria_sugerida }}</div>
-                                <div class="small text-muted">{{ ticket.setor }} — aberto em {{ ticket.data_abertura|date:"d/m/Y H:i" }}</div>
-                            </div>
-                            <span class="badge {% if ticket.status == 'aberto' %}bg-warning text-dark{% elif ticket.status == 'em_atendimento' %}bg-info text-dark{% elif ticket.status == 'pausado' %}bg-dark{% else %}bg-secondary{% endif %}">
-                                {{ ticket.get_status_display }}
-                            </span>
-                        </div>
-                    </a>
+                        {% include "tickets/_meu_ticket_item.html" with ticket=ticket %}
                     {% endfor %}
                 </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if ativos is not None %}
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h2 class="h6 mb-3">Seus chamados em andamento</h2>
+                {% if ativos %}
+                    <div class="d-flex flex-column gap-2">
+                        {% for ticket in ativos %}
+                            {% include "tickets/_meu_ticket_item.html" with ticket=ticket %}
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted small mb-0">
+                        Você não tem chamados em andamento. Os já fechados podem ser
+                        encontrados pela busca acima, pelo código ou pela data.
+                    </p>
+                {% endif %}
             </div>
         </div>
         {% endif %}

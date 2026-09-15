@@ -1,3 +1,4 @@
+import re
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
@@ -188,4 +189,59 @@ class VisualizacaoKanbanTests(TestCase):
         self.assertContains(resposta, 'id="filaKanban"')
         self.assertContains(
             resposta, reverse("tickets:detalhe_ticket", args=[self.ticket_aberto.pk])
+        )
+
+
+class AlternanciaTodosMeusMeuNivelTests(TestCase):
+    """O grupo "Todos / Meus chamados / Meu nível" é excludente: só um dos
+    três pode ficar aceso (btn-primary) de cada vez. "Todos" já chegou a
+    acender junto com "Meu nível", porque só olhava atribuidos_a_mim."""
+
+    def setUp(self):
+        self.tecnico = get_user_model().objects.create_user(
+            username="tecnico_teste_alternancia", is_staff=True, password="senha-teste-123",
+        )
+        self.categoria = Categoria.objects.create(
+            nome="Categoria teste alternancia", grupo=Categoria.Grupo.SUPORTE,
+            peso_categoria=2, sla_horas=8,
+        )
+        self.setor = Setor.objects.create(nome="Setor teste alternancia", peso_setor=3)
+        self.ticket = abrir_ticket(
+            categoria_sugerida=self.categoria, setor=self.setor, descricao="Chamado teste",
+            solicitante_nome="Fulano", solicitante_ramal="1", solicitante_sala="Sala 1",
+        )
+        atribuir_tecnico(self.ticket, self.tecnico)
+        self.client.login(username="tecnico_teste_alternancia", password="senha-teste-123")
+
+    def _botoes_acesos(self, **querystring):
+        """Devolve os rótulos dos botões do grupo que estão em btn-primary."""
+        resposta = self.client.get(reverse("tickets:fila_tickets"), querystring)
+        html = resposta.content.decode()
+
+        inicio = html.index('aria-label="Alternar entre todos os chamados e os meus"')
+        grupo = html[inicio:html.index("</div>", inicio)]
+
+        return [
+            rotulo.strip()
+            for classe, rotulo in re.findall(
+                r'class="btn btn-sm (btn-primary|btn-outline-primary)"[^>]*>\s*([^<]+?)\s*</a>',
+                grupo,
+            )
+            if classe == "btn-primary"
+        ]
+
+    def test_sem_filtro_acende_so_todos(self):
+        self.assertEqual(self._botoes_acesos(), ["Todos"])
+
+    def test_meus_chamados_acende_so_meus_chamados(self):
+        self.assertEqual(self._botoes_acesos(atribuidos_a_mim="on"), ["Meus chamados"])
+
+    def test_meu_nivel_nao_acende_todos_junto(self):
+        self.assertEqual(self._botoes_acesos(nivel="n1"), ["Meu nível (N1)"])
+
+    def test_meus_chamados_com_nivel_do_tecnico_acende_so_um(self):
+        """Dá pra combinar os dois pelo painel de filtros avançados (que tem
+        seu próprio select de nível); mesmo assim só um fica aceso."""
+        self.assertEqual(
+            self._botoes_acesos(atribuidos_a_mim="on", nivel="n1"), ["Meus chamados"]
         )

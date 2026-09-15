@@ -1,0 +1,26 @@
+{% comment %}
+Linha de chamado na tela "Meus chamados" — usada tanto na lista de chamados
+em andamento quanto no resultado da busca por data. Espera `ticket`.
+{% endcomment %}
+<a href="{% url 'tickets:meu_ticket_detalhe' ticket.pk %}" class="card card-body text-decoration-none text-reset py-2">
+    <div class="d-flex justify-content-between align-items-center gap-3">
+        <div>
+            <div class="fw-semibold">{{ ticket.codigo }} — {{ ticket.categoria_final|default:ticket.categoria_sugerida }}</div>
+            <div class="small text-muted">{{ ticket.setor }}</div>
+            {% comment %}
+            Data em linha própria e sem text-muted no valor: é a informação
+            que o solicitante mais procura ("faz quanto tempo que abri
+            isso?"), e antes ficava cinza no fim da mesma linha do setor.
+            "às" fica fora do filtro date porque 'a' e 's' são códigos de
+            formato do Django (am/pm e segundos).
+            {% endcomment %}
+            <div class="small">
+                <span class="text-muted">Aberto em</span>
+                {{ ticket.data_abertura|date:"d/m/Y" }} às {{ ticket.data_abertura|date:"H:i" }}
+            </div>
+        </div>
+        <span class="badge {% if ticket.status == 'aberto' %}bg-warning text-dark{% elif ticket.status == 'em_atendimento' %}bg-info text-dark{% elif ticket.status == 'pausado' %}bg-dark{% else %}bg-secondary{% endif %}">
+            {{ ticket.get_status_display }}
+        </span>
+    </div>
+</a>

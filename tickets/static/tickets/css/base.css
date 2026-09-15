@@ -552,6 +552,15 @@ button.form-select {
     padding: 0.5rem 0.75rem 0.2rem;
     flex-shrink: 0;
 }
+/* "Nenhum resultado" dentro do menu: antes o painel só fechava em silêncio,
+   e quem digitava errado não sabia se tinha filtrado tudo ou se o campo
+   tinha parado de funcionar. */
+.menu-flutuante-vazio {
+    font-size: 0.85rem;
+    color: var(--label-muted);
+    padding: 0.5rem 0.75rem;
+    flex-shrink: 0;
+}
 
 /* ---- sidebar recolhida ---- */
 html[data-sidebar-collapsed="true"] .sidebar { width: 68px; }

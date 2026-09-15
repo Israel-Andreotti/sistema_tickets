@@ -9,6 +9,7 @@ from tickets.services.classificacao import (
     responder_solicitacao_transferencia,
     solicitar_transferencia,
 )
+from tickets.services.equipamento import obter_setor_ti
 
 
 class SolicitarTransferenciaTests(TestCase):
@@ -266,12 +267,13 @@ class DetalheTicketTransferenciaTemplateTests(TestCase):
         self.assertContains(resposta, "Gerenciar")
         self.assertContains(resposta, "Atribuído a você")
 
-    def test_gestor_continua_vendo_seletor_de_atribuicao_livre(self):
+    def test_gestor_da_ti_continua_vendo_seletor_de_atribuicao_livre(self):
         gestor = get_user_model().objects.create_user(
             username="gestor_teste_template", password="senha-teste-123",
         )
-        self.setor.gestor = gestor
-        self.setor.save(update_fields=["gestor"])
+        setor_ti = obter_setor_ti()
+        setor_ti.gestor = gestor
+        setor_ti.save(update_fields=["gestor"])
         atribuir_tecnico(self.ticket, self.tecnico_a)
         self.client.login(username="gestor_teste_template", password="senha-teste-123")
         resposta = self.client.get(reverse("tickets:detalhe_ticket", args=[self.ticket.pk]))
