@@ -198,10 +198,11 @@
             </tr>
         </thead>
         <tbody>
-            {% for ticket in tickets %}
+            {% for ticket in pagina %}
             <tr
                 class="{{ ticket.sla_nivel }}" style="cursor: pointer;"
-                onclick="window.location='{% url 'tickets:detalhe_ticket' ticket.pk %}'">
+                tabindex="0" role="link" aria-label="Abrir chamado {{ ticket.codigo }}"
+                data-href="{% url 'tickets:detalhe_ticket' ticket.pk %}">
                 <td>{{ ticket.codigo }}</td>
                 <td>
                     <div class="d-flex align-items-center gap-2">
@@ -210,7 +211,12 @@
                         </span>
                         <div>
                             <div class="fw-semibold">{{ ticket.solicitante_nome }}</div>
-                            <div class="small text-muted">{{ ticket.setor }}</div>
+                            <div class="small text-muted">
+                                {{ ticket.setor }}
+                                {% if ticket.setor_vital %}
+                                    <span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle" title="Setor clinicamente crítico">⚠ Setor vital</span>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                 </td>
@@ -256,6 +262,31 @@
             {% endfor %}
         </tbody>
     </table>
+
+    {% comment %}
+    Só a visão em lista pagina — o kanban usa tickets_por_status (todos os
+    cartões agrupados por coluna); paginar ali dividiria as colunas de forma
+    confusa, e o kanban raramente fica tão longo quanto a tabela plana.
+    {% endcomment %}
+    {% if pagina.paginator.num_pages > 1 %}
+    <nav aria-label="Paginação da fila">
+        <ul class="pagination pagination-sm">
+            {% if pagina.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if querystring_paginacao %}{{ querystring_paginacao }}&{% endif %}pagina={{ pagina.previous_page_number }}">Anterior</a>
+                </li>
+            {% endif %}
+            <li class="page-item disabled">
+                <span class="page-link">Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}</span>
+            </li>
+            {% if pagina.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if querystring_paginacao %}{{ querystring_paginacao }}&{% endif %}pagina={{ pagina.next_page_number }}">Próxima</a>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
 </div>
 {% endblock %}
 

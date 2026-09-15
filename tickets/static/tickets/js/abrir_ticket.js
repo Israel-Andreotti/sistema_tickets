@@ -111,6 +111,8 @@ document.addEventListener('DOMContentLoaded', function () {
     function fecharSugestoesSetor() {
         setorSugestoes.classList.add('d-none');
         setorSugestoes.innerHTML = '';
+        setorBusca.setAttribute('aria-expanded', 'false');
+        setorBusca.removeAttribute('aria-activedescendant');
         itensAtuais = [];
         indiceAtivo = -1;
     }
@@ -121,10 +123,20 @@ document.addEventListener('DOMContentLoaded', function () {
         fecharSugestoesSetor();
     }
 
+    // aria-activedescendant no input (em vez de foco real no botão) é o
+    // padrão de combobox: o teclado continua no campo de texto, e o item
+    // "ativo" na lista é só anunciado pro leitor de tela.
     function destacarSugestaoAtiva() {
         Array.prototype.forEach.call(setorSugestoes.children, function (el, indice) {
-            el.classList.toggle('ativo', indice === indiceAtivo);
+            var ativo = indice === indiceAtivo;
+            el.classList.toggle('ativo', ativo);
+            el.setAttribute('aria-selected', ativo.toString());
         });
+        if (indiceAtivo >= 0) {
+            setorBusca.setAttribute('aria-activedescendant', 'setor-opcao-' + indiceAtivo);
+        } else {
+            setorBusca.removeAttribute('aria-activedescendant');
+        }
     }
 
     function renderizarSugestoesSetor(lista) {
@@ -139,11 +151,15 @@ document.addEventListener('DOMContentLoaded', function () {
             vazio.textContent = 'Nenhum setor encontrado.';
             setorSugestoes.appendChild(vazio);
             setorSugestoes.classList.remove('d-none');
+            setorBusca.setAttribute('aria-expanded', 'true');
             return;
         }
-        lista.forEach(function (item) {
+        lista.forEach(function (item, indice) {
             var botao = document.createElement('button');
             botao.type = 'button';
+            botao.id = 'setor-opcao-' + indice;
+            botao.setAttribute('role', 'option');
+            botao.setAttribute('aria-selected', 'false');
             botao.className = 'menu-flutuante-item';
             botao.textContent = item.texto;
             botao.addEventListener('mousedown', function (evento) {
@@ -153,6 +169,7 @@ document.addEventListener('DOMContentLoaded', function () {
             setorSugestoes.appendChild(botao);
         });
         setorSugestoes.classList.remove('d-none');
+        setorBusca.setAttribute('aria-expanded', 'true');
     }
 
     setorBusca.addEventListener('input', function () {
@@ -215,7 +232,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 listaSugestoesArtigos.innerHTML = '';
                 dados.artigos.forEach(function (artigo) {
                     var link = document.createElement('a');
-                    link.href = artigo.url;
+                    // de_sugestao=1 avisa detalhe_artigo_view que a pessoa
+                    // chegou por aqui — é o que faz o bloco de "isso
+                    // ajudou?" aparecer na página do artigo (só lá, não
+                    // mais neste card).
+                    link.href = artigo.url + '?de_sugestao=1';
                     link.target = '_blank';
                     link.rel = 'noopener';
                     link.className = 'card card-body py-2 text-decoration-none text-reset';

@@ -26,12 +26,22 @@
                     <h2 class="h6 text-muted text-uppercase small mb-2" style="letter-spacing: 0.05em;">Suas informações</h2>
 
                     <div class="row">
-                        <div class="col-md-6 mb-2">
+                        <div class="col-md-3 mb-2">
                             <label for="{{ form.solicitante_ramal.id_for_label }}" class="form-label">
                                 {{ form.solicitante_ramal.label }} <span class="text-danger">*</span>
                             </label>
                             {{ form.solicitante_ramal }}
                             {% for error in form.solicitante_ramal.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+
+                        <div class="col-md-3 mb-2">
+                            <label for="{{ form.solicitante_sala.id_for_label }}" class="form-label">
+                                {{ form.solicitante_sala.label }}
+                            </label>
+                            {{ form.solicitante_sala }}
+                            {% for error in form.solicitante_sala.errors %}
                                 <div class="text-danger small">{{ error }}</div>
                             {% endfor %}
                         </div>
@@ -42,9 +52,11 @@
                             </label>
                             <input
                                 type="text" id="setorBusca" class="form-control"
-                                placeholder="Digite para buscar..." autocomplete="off">
+                                placeholder="Digite para buscar..." autocomplete="off"
+                                role="combobox" aria-expanded="false" aria-autocomplete="list"
+                                aria-controls="setorSugestoes">
                             <div
-                                id="setorSugestoes" class="menu-flutuante d-none"
+                                id="setorSugestoes" class="menu-flutuante d-none" role="listbox"
                                 style="position: absolute; z-index: 1050; width: 100%;">
                             </div>
                             {{ form.setor }}

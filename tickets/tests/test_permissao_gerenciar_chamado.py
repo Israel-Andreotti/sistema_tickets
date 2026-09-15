@@ -123,3 +123,15 @@ class PermissaoGerenciarChamadoTests(TestCase):
         resposta = self.client.get(reverse("tickets:detalhe_ticket", args=[self.ticket.pk]))
         self.assertNotContains(resposta, "Só o técnico responsável pode confirmar a classificação.")
         self.assertNotContains(resposta, "Só o técnico responsável pode fechar o chamado.")
+
+    def test_tecnico_nao_responsavel_ve_select_de_categoria_tambem_desabilitado(self):
+        """Regressão: antes só o botão "Confirmar classificação" ficava
+        desabilitado — o <select> continuava clicável, dando a entender que
+        dava pra mexer na classificação mesmo sem ser o responsável."""
+        self.client.login(username="tecnico_b_permissao", password="senha-teste-123")
+        resposta = self.client.get(reverse("tickets:detalhe_ticket", args=[self.ticket.pk]))
+        self.assertTrue(resposta.context["form"].fields["categoria_final"].disabled)
+        self.assertRegex(
+            resposta.content.decode(),
+            r'disabled[^>]*id="id_categoria_final"',
+        )

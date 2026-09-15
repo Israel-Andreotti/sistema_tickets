@@ -100,32 +100,32 @@
 <div class="painel-secao">
     <p class="painel-titulo-texto">Eficiência e desempenho (últimos 7 dias)</p>
     <div class="row g-3">
-        <div class="col-sm-6 col-lg-3">
+        <div class="col-sm-6 col-lg-4">
             <div class="stat-card">
                 <div class="stat-label">Tempo médio de resolução</div>
                 <div class="stat-value">{{ eficiencia.mttr_formatado|default:"—" }}</div>
             </div>
         </div>
-        <div class="col-sm-6 col-lg-3">
+        <div class="col-sm-6 col-lg-4">
             <div class="stat-card">
                 <div class="stat-label">Tempo médio até 1ª resposta</div>
                 <div class="stat-value">{{ eficiencia.mtta_formatado|default:"—" }}</div>
             </div>
         </div>
-        <div class="col-sm-6 col-lg-3">
+        <div class="col-sm-6 col-lg-4">
             <div class="stat-card">
                 <div class="stat-label">Aguardando terceiros/usuário</div>
                 <div class="stat-value">{{ eficiencia.pausados }}</div>
             </div>
         </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="stat-card stat-calibragem">
-                <div class="stat-label">Resolução no 1º contato</div>
-                <div class="stat-value valor-neutro">—</div>
-                <span class="selo-calibragem">Sem dados suficientes</span>
-            </div>
-        </div>
     </div>
+    {% comment %}
+    Existia aqui um card "Resolução no 1º contato" fixo em "—" com o selo
+    "Sem dados suficientes" — mas essa métrica nunca foi calculada em
+    dashboard_view, então o card nunca ia deixar de mostrar isso por mais
+    dados que o sistema acumulasse. Removido até a métrica existir de
+    verdade; ver relatório de UX/UI.
+    {% endcomment %}
 </div>
 
 <div class="painel-secao row g-3">
@@ -161,7 +161,10 @@
                         </thead>
                         <tbody>
                             {% for item in chamados_criticos %}
-                            <tr onclick="window.location='{% url 'tickets:detalhe_ticket' item.ticket.pk %}'" style="cursor: pointer;">
+                            <tr
+                                style="cursor: pointer;" tabindex="0" role="link"
+                                aria-label="Abrir chamado {{ item.ticket.codigo }}"
+                                data-href="{% url 'tickets:detalhe_ticket' item.ticket.pk %}">
                                 <td>{{ item.ticket.codigo }}</td>
                                 <td>{{ item.ticket.solicitante_nome }}</td>
                                 <td>{{ item.ticket.setor }}</td>

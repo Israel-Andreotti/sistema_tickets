@@ -49,7 +49,7 @@
                         <div class="kv-value">{{ ticket.setor }}</div>
                     </div>
                     <div>
-                        <div class="kv-label">Nível de atendimento</div>
+                        <div class="kv-label">Abrangência do impacto</div>
                         <div class="kv-value">{{ ticket.get_impacto_display }}</div>
                     </div>
                     <div>
@@ -649,9 +649,11 @@
                     <label for="buscaRespostaRapida" class="form-label small mb-1">Modelos de resposta</label>
                     <input
                         type="text" id="buscaRespostaRapida" class="form-control form-control-sm"
-                        placeholder="Buscar um modelo de resposta..." autocomplete="off">
+                        placeholder="Buscar um modelo de resposta..." autocomplete="off"
+                        role="combobox" aria-expanded="false" aria-autocomplete="list"
+                        aria-controls="sugestoesRespostaRapida">
                     <div
-                        id="sugestoesRespostaRapida" class="menu-flutuante d-none"
+                        id="sugestoesRespostaRapida" class="menu-flutuante d-none" role="listbox"
                         style="position: absolute; z-index: 1050; width: 100%;">
                     </div>
                 </div>

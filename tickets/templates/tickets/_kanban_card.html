@@ -12,7 +12,12 @@
         </span>
         <div>
             <div class="small fw-semibold">{{ ticket.solicitante_nome }}</div>
-            <div class="small text-muted">{{ ticket.setor }}</div>
+            <div class="small text-muted">
+                {{ ticket.setor }}
+                {% if ticket.setor_vital %}
+                    <span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle" title="Setor clinicamente crítico">⚠ Setor vital</span>
+                {% endif %}
+            </div>
         </div>
     </div>
     <div class="small text-muted mb-1">{{ ticket.categoria_sugerida }}</div>

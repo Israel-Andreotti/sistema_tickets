@@ -92,4 +92,20 @@ document.addEventListener('DOMContentLoaded', function () {
         };
         setInterval(atualizarBadgeNotificacoes, 20000);
     }
+
+    // Linha de tabela que navega ao clicar (fila, histórico, dashboard):
+    // data-href em vez de onclick inline pra poder dar suporte a teclado no
+    // mesmo lugar, uma vez só — antes só funcionava com mouse, porque a
+    // <tr> não tinha tabindex nem role, e não havia handler de teclado.
+    document.querySelectorAll('tr[data-href]').forEach(function (linha) {
+        linha.addEventListener('click', function () {
+            window.location = linha.dataset.href;
+        });
+        linha.addEventListener('keydown', function (evento) {
+            if (evento.key === 'Enter' || evento.key === ' ') {
+                evento.preventDefault();
+                window.location = linha.dataset.href;
+            }
+        });
+    });
 });

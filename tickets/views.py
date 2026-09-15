@@ -1,11 +1,12 @@
 import json
 import re
 from datetime import timedelta
+from functools import wraps
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model, login, update_session_auth_hash
-from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView as LoginViewBase
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
@@ -40,6 +41,7 @@ from .models import (
     ArtigoConhecimento,
     Categoria,
     ComentarioTicket,
+    FeedbackArtigoConhecimento,
     HistoricoSLA,
     ItemConfiguracao,
     MovimentacaoEquipamento,
@@ -51,6 +53,7 @@ from .models import (
     Setor,
     Ticket,
 )
+from .services.artigos import registrar_feedback_artigo
 from .services.classificacao import (
     abrir_ticket,
     atribuir_tecnico,
@@ -72,35 +75,12 @@ from .services.equipamento import (
 )
 from .services.ia import classificar_ticket_em_segundo_plano
 from .services.notificacoes import marcar_como_lida, marcar_todas_como_lidas, notificar, notificar_usuario
-from .services.parametros import ParametroNaoConfigurado
+from .services.parametros import ParametroNaoConfigurado, get_parametro
 from .services.pausa import pausar_ticket, retomar_ticket
+from .services.permissoes import tem_acesso_operacional
 from .services.recuperacao_senha import solicitar_codigo, validar_codigo
 from .services.sla import fechar_ticket, percentual_sla_consumido, prazo_ajustado
 from .services.usuarios import criar_usuario_admissao
-
-def _e_gestor_da_ti(user):
-    """Gestor do setor de TI — na prática, o administrador do sistema (mesmo
-    critério do rótulo em _cargo_usuario). Ser gestor de qualquer outro setor
-    não dá nenhum acesso especial: essa pessoa é um usuário comum, que só
-    enxerga os próprios chamados."""
-    try:
-        setor_ti_id = obter_setor_ti().pk
-    except (ParametroNaoConfigurado, Setor.DoesNotExist):
-        return False
-    return Setor.objects.filter(pk=setor_ti_id, gestor=user).exists()
-
-
-def _tem_acesso_operacional(user):
-    """Acesso operacional pleno ao sistema — fila, histórico, base de conhecimento,
-    SLA por categoria e ações em chamados: técnicos, gestor da TI e superusuários.
-    O gestor de um setor que não é a TI fica de fora de propósito — ele responde
-    pelo setor dele no mundo real, mas dentro do sistema tem o mesmo acesso de um
-    usuário comum. O Django admin (/admin/) é a única área que continua exclusiva
-    a superusuários (is_staff sozinho não concede acesso a ele)."""
-    return user.is_authenticated and (
-        user.is_staff or user.is_superuser or _e_gestor_da_ti(user)
-    )
-
 
 def _pode_gerenciar_chamado(user, ticket):
     """Classificar e fechar são ações de dono do chamado — só o técnico
@@ -110,7 +90,21 @@ def _pode_gerenciar_chamado(user, ticket):
     return not user.is_staff or ticket.tecnico_responsavel_id == user.id
 
 
-tecnico_required = user_passes_test(_tem_acesso_operacional, login_url="login")
+def tecnico_required(view_func):
+    """Diferente de user_passes_test: quem não está logado ainda vai pro
+    login (é só uma tela que falta acessar), mas quem já está logado e não
+    tem acesso operacional recebe a tela de 403 — não faz sentido mandar de
+    volta pro login alguém que acabou de sair dele. Mesmo padrão que
+    editar_equipamento_view já usava (raise PermissionDenied)."""
+    @login_required
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if not tem_acesso_operacional(request.user):
+            raise PermissionDenied
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
 acesso_equipamentos_required = tecnico_required
 ver_slas_required = tecnico_required
 
@@ -159,7 +153,7 @@ def abrir_ticket_view(request):
                 solicitante=request.user,
                 solicitante_nome=request.user.get_full_name() or request.user.username,
                 solicitante_ramal=form.cleaned_data["solicitante_ramal"],
-                solicitante_sala="",
+                solicitante_sala=form.cleaned_data["solicitante_sala"],
                 item_configuracao=form.cleaned_data.get("item_configuracao"),
                 solicitante_ip=obter_ip_cliente(request),
                 impacto=form.cleaned_data["impacto"],
@@ -271,9 +265,25 @@ def meu_ticket_detalhe_view(request, pk):
         }[comentario.tipo]
 
     tipo_calculado = (ticket.categoria_final or ticket.categoria_sugerida).tipo
+
+    # Previsão de atendimento pro solicitante — antes só o técnico via prazo
+    # de SLA na fila, e quem abriu o chamado não tinha como saber se "está
+    # demorando" ou não. Não faz sentido calcular isso pra um chamado já
+    # fechado (o prazo dele já foi ou não cumprido, é histórico).
+    prazo_sla = None
+    if ticket.status != Ticket.Status.FECHADO:
+        agora = timezone.now()
+        prazo = prazo_ajustado(ticket, referencia=agora)
+        prazo_sla = {
+            "prazo": prazo,
+            "estourado": prazo < agora,
+            "texto": "Pausado" if ticket.status == Ticket.Status.PAUSADO else _tempo_restante_texto(prazo, agora),
+        }
+
     return render(request, "tickets/meu_ticket_detalhe.html", {
         "ticket": ticket, "comentarios": comentarios, "tipo_calculado": tipo_calculado,
         "form_resposta": ResponderTicketForm(),
+        "prazo_sla": prazo_sla,
     })
 
 
@@ -409,20 +419,24 @@ def esqueci_senha_view(request):
     usuário e recebe um código de 6 dígitos por e-mail (ver
     services/recuperacao_senha.py). Sem link com token na URL porque o
     sistema roda só na rede interna do hospital, sem domínio público."""
+    # Mensagem de erro igual pros dois motivos de falha (usuário não existe /
+    # existe mas não tem e-mail cadastrado): distingui-los deixava enumerar
+    # nomes de usuário válidos só tentando "esqueci minha senha" — mesma
+    # política já usada na tela de login, que também não diz qual dos dois
+    # (usuário ou senha) está errado.
+    erro_generico = "Não foi possível enviar um código para este usuário. Confira o nome de usuário ou procure a equipe de TI."
+
     form = EsqueciSenhaForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         try:
             usuario = get_user_model().objects.get(username=form.cleaned_data["username"])
         except get_user_model().DoesNotExist:
-            form.add_error("username", "Usuário não encontrado.")
+            form.add_error("username", erro_generico)
         else:
             try:
                 solicitar_codigo(usuario)
             except ValueError:
-                form.add_error(
-                    "username",
-                    "Este usuário não tem e-mail cadastrado. Procure a equipe de TI para redefinir sua senha.",
-                )
+                form.add_error("username", erro_generico)
             else:
                 request.session["recuperacao_usuario_id"] = usuario.pk
                 messages.success(request, f"Enviamos um código de recuperação para {usuario.email}.")
@@ -604,12 +618,17 @@ def fila_tickets_view(request):
     tickets = list(tickets_qs.order_by("-prioridade_calculada", "data_abertura"))
 
     agora = timezone.now()
+    peso_setor_vital = _peso_setor_vital()
     for ticket in tickets:
         categoria_referencia = ticket.categoria_final or ticket.categoria_sugerida
         ticket.tipo_calculado = categoria_referencia.tipo
         ticket.pausa_atual = next(
             (p for p in ticket.pausas_sla.all() if p.finalizada_em is None), None
         )
+        # Mesmo critério do indicador "setores vitais" do dashboard — dá pra
+        # ver na própria fila, sem precisar ir no dashboard, que aquele
+        # chamado é de um setor clinicamente crítico (CTI, UTI etc.).
+        ticket.setor_vital = ticket.setor.peso_setor >= peso_setor_vital
 
         ticket.prazo = prazo_ajustado(ticket, referencia=agora)
         ticket.prazo_estourado = ticket.prazo < agora
@@ -639,17 +658,37 @@ def fila_tickets_view(request):
         "pausado": [t for t in tickets if t.status == Ticket.Status.PAUSADO],
     }
 
+    # Só a tabela (visão em lista) pagina — o kanban continua mostrando todas
+    # as colunas inteiras (tickets_por_status, acima). Pagina() aceita lista
+    # já pronta em memória, não só QuerySet, o que é necessário aqui: a
+    # ordenação por prazo/SLA é feita em Python (não dá pra levar pro SQL
+    # sem duplicar a lógica de prazo_ajustado).
+    paginador = Paginator(tickets, 50)
+    pagina = paginador.get_page(request.GET.get("pagina"))
+
+    querystring_paginacao = request.GET.copy()
+    querystring_paginacao.pop("pagina", None)
+
     return render(request, "tickets/fila_tickets.html", {
         "tickets": tickets,
+        "pagina": pagina,
         "tickets_por_status": tickets_por_status,
         "setores": Setor.objects.order_by("nome"),
         "ultimo_id": max((t.pk for t in tickets), default=0),
+        "querystring_paginacao": querystring_paginacao.urlencode(),
         **filtros,
     })
 
 
-# Peso de setor a partir do qual ele é considerado "vital" pro indicador de
-# chamados críticos por setor (escala de peso_setor vai de 1 a 5).
+def _peso_setor_vital():
+    """Peso de setor (escala 1 a 5) a partir do qual ele é considerado
+    "vital" — pro indicador de chamados críticos por setor (dashboard) e pro
+    destaque de criticidade clínica na fila. Vem de ParametroSistema, não
+    fixo no código: é o requisito central do projeto, nenhuma regra numérica
+    de negócio deve ficar hardcoded."""
+    return get_parametro("peso_setor_vital", default=4, cast=int)
+
+
 def _formatar_horas(horas):
     """Converte um total de horas fracionário em texto "Xh Ym" ou, acima de
     um dia, "Xd Yh" — mais legível em relatório do que um decimal solto."""
@@ -663,14 +702,12 @@ def _formatar_horas(horas):
     return f"{horas_inteiras}h {minutos}m"
 
 
-PESO_SETOR_VITAL = 4
-
-
 @tecnico_required
 def dashboard_view(request):
     agora = timezone.now()
     hoje = agora.date()
     desde_semana = agora - timedelta(days=7)
+    peso_setor_vital = _peso_setor_vital()
 
     tickets_ativos = list(
         Ticket.objects.exclude(status=Ticket.Status.FECHADO)
@@ -700,7 +737,7 @@ def dashboard_view(request):
         "criticos_60min": criticos_60min,
         "estourados": estourados,
         "sem_atribuicao": sum(1 for t in tickets_ativos if t.tecnico_responsavel_id is None),
-        "setores_vitais": sum(1 for t in tickets_ativos if t.setor.peso_setor >= PESO_SETOR_VITAL),
+        "setores_vitais": sum(1 for t in tickets_ativos if t.setor.peso_setor >= peso_setor_vital),
     }
 
     tickets_com_prazo.sort(key=lambda item: item[0])
@@ -1009,7 +1046,13 @@ def _contexto_detalhe_ticket(ticket):
 def detalhe_ticket_view(request, pk):
     ticket = _obter_ticket_detalhe(pk)
     contexto = _contexto_detalhe_ticket(ticket)
-    contexto["pode_gerenciar_chamado"] = _pode_gerenciar_chamado(request.user, ticket)
+    pode_gerenciar = _pode_gerenciar_chamado(request.user, ticket)
+    contexto["pode_gerenciar_chamado"] = pode_gerenciar
+    if not pode_gerenciar:
+        # Sem isso só o botão ficava desabilitado — o select continuava
+        # clicável, dando a entender (visualmente) que dava pra mexer na
+        # classificação mesmo sem ser o técnico responsável.
+        contexto["form"].fields["categoria_final"].disabled = True
     return render(request, "tickets/detalhe_ticket.html", contexto)
 
 
@@ -1371,7 +1414,7 @@ def cadastrar_equipamento_view(request):
 def editar_equipamento_view(request, pk):
     equipamento = get_object_or_404(ItemConfiguracao.objects.select_related("setor"), pk=pk)
     # Ser gestor do setor do equipamento não basta — o CMDB é da TI.
-    if not _tem_acesso_operacional(request.user):
+    if not tem_acesso_operacional(request.user):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1494,6 +1537,7 @@ def sugestoes_artigos_view(request):
     return JsonResponse({
         "artigos": [
             {
+                "id": artigo.pk,
                 "titulo": artigo.titulo.title(),
                 "resumo": artigo.resumo,
                 "url": reverse("tickets:detalhe_artigo", args=[artigo.pk]),
@@ -1504,9 +1548,42 @@ def sugestoes_artigos_view(request):
 
 
 @login_required
+@require_POST
+def feedback_artigo_view(request, pk):
+    """👍/👎 no artigo sugerido durante a abertura de chamado — mede se a
+    base de conhecimento evitou a abertura. Dar de novo no mesmo artigo
+    atualiza o voto anterior (ver registrar_feedback_artigo)."""
+    artigo = get_object_or_404(ArtigoConhecimento, pk=pk)
+    try:
+        util = json.loads(request.body)["util"]
+    except (json.JSONDecodeError, KeyError):
+        util = None
+    if not isinstance(util, bool):
+        return JsonResponse({"erro": "Corpo inválido — esperado {\"util\": true|false}."}, status=400)
+
+    registrar_feedback_artigo(artigo, request.user, util=util)
+    return JsonResponse({"ok": True})
+
+
+@login_required
 def detalhe_artigo_view(request, pk):
     artigo = get_object_or_404(ArtigoConhecimento.objects.select_related("autor", "categoria"), pk=pk)
-    return render(request, "tickets/detalhe_artigo.html", {"artigo": artigo})
+    # O feedback só aparece quando a pessoa chegou aqui por uma sugestão
+    # durante a abertura de chamado (abrir_ticket.js acrescenta ?de_sugestao=1
+    # no link), não quando navega livre pela base de conhecimento — o card
+    # pequeno de sugestão sozinho ficava fora de vista assim que o artigo
+    # abria numa aba nova, então o feedback também passou a aparecer aqui.
+    mostrar_feedback = request.GET.get("de_sugestao") == "1"
+    feedback_existente = None
+    if mostrar_feedback:
+        feedback_existente = FeedbackArtigoConhecimento.objects.filter(
+            artigo=artigo, usuario=request.user,
+        ).first()
+    return render(request, "tickets/detalhe_artigo.html", {
+        "artigo": artigo,
+        "mostrar_feedback_artigo": mostrar_feedback,
+        "feedback_existente": feedback_existente,
+    })
 
 
 @tecnico_required

@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.db.models import Count, Q
 
 from .models import (
     ArtigoConhecimento,
@@ -7,6 +8,7 @@ from .models import (
     ComentarioTicket,
     EscalonamentoTicket,
     ExcecaoPrioridade,
+    FeedbackArtigoConhecimento,
     HistoricoSLA,
     ItemConfiguracao,
     MovimentacaoEquipamento,
@@ -255,8 +257,32 @@ class RecomendacaoAdmin(admin.ModelAdmin):
 
 @admin.register(ArtigoConhecimento)
 class ArtigoConhecimentoAdmin(admin.ModelAdmin):
-    list_display = ("titulo", "categoria", "autor", "atualizado_em")
+    list_display = ("titulo", "categoria", "autor", "atualizado_em", "feedback_util", "feedback_nao_util")
     list_filter = ("categoria",)
     search_fields = ("titulo", "resumo", "conteudo")
     autocomplete_fields = ("categoria", "autor")
+    readonly_fields = ("criado_em", "atualizado_em")
+
+    def get_queryset(self, request):
+        # Contagem via annotate em vez de percorrer feedbacks.all() em
+        # Python: evita N+1 e mantém a listagem rápida com muitos artigos.
+        return super().get_queryset(request).annotate(
+            total_util=Count("feedbacks", filter=Q(feedbacks__util=True)),
+            total_nao_util=Count("feedbacks", filter=Q(feedbacks__util=False)),
+        )
+
+    @admin.display(description="👍", ordering="total_util")
+    def feedback_util(self, obj):
+        return obj.total_util
+
+    @admin.display(description="👎", ordering="total_nao_util")
+    def feedback_nao_util(self, obj):
+        return obj.total_nao_util
+
+
+@admin.register(FeedbackArtigoConhecimento)
+class FeedbackArtigoConhecimentoAdmin(admin.ModelAdmin):
+    list_display = ("artigo", "usuario", "util", "criado_em")
+    list_filter = ("util",)
+    autocomplete_fields = ("artigo", "usuario")
     readonly_fields = ("criado_em", "atualizado_em")

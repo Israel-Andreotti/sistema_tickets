@@ -32,13 +32,31 @@
                         <div class="kv-value">{{ ticket.setor }}</div>
                     </div>
                     <div>
-                        <div class="kv-label">Nível de atendimento</div>
+                        <div class="kv-label">Abrangência do impacto</div>
                         <div class="kv-value">{{ ticket.get_impacto_display }}</div>
                     </div>
+                    {% if ticket.solicitante_sala %}
+                    <div>
+                        <div class="kv-label">Sala</div>
+                        <div class="kv-value">{{ ticket.solicitante_sala }}</div>
+                    </div>
+                    {% endif %}
                     <div>
                         <div class="kv-label">Aberto em</div>
                         <div class="kv-value">{{ ticket.data_abertura|date:"d/m/Y H:i" }}</div>
                     </div>
+                    {% if prazo_sla %}
+                    <div>
+                        <div class="kv-label">Previsão de atendimento</div>
+                        <div class="kv-value {% if prazo_sla.estourado %}text-danger{% endif %}">
+                            {% if prazo_sla.estourado %}
+                                Prazo previsto já passou — nossa equipe já está ciente
+                            {% else %}
+                                {{ prazo_sla.texto }} (até {{ prazo_sla.prazo|date:"d/m/Y H:i" }})
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
                     {% if ticket.tecnico_responsavel %}
                     <div>
                         <div class="kv-label">Técnico responsável</div>

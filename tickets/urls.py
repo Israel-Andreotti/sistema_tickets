@@ -64,4 +64,5 @@ urlpatterns = [
     path("base-conhecimento/novo/", views.criar_artigo_view, name="criar_artigo"),
     path("base-conhecimento/<int:pk>/", views.detalhe_artigo_view, name="detalhe_artigo"),
     path("base-conhecimento/<int:pk>/editar/", views.editar_artigo_view, name="editar_artigo"),
+    path("base-conhecimento/<int:pk>/feedback/", views.feedback_artigo_view, name="feedback_artigo"),
 ]

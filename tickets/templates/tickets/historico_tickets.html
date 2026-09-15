@@ -86,7 +86,10 @@
         </thead>
         <tbody>
             {% for ticket in pagina %}
-            <tr onclick="window.location='{% url 'tickets:detalhe_ticket' ticket.pk %}'" style="cursor: pointer;">
+            <tr
+                style="cursor: pointer;" tabindex="0" role="link"
+                aria-label="Abrir chamado {{ ticket.codigo }}"
+                data-href="{% url 'tickets:detalhe_ticket' ticket.pk %}">
                 <td>{{ ticket.codigo }}</td>
                 <td>{{ ticket.solicitante_nome }}</td>
                 <td>{{ ticket.setor }}</td>

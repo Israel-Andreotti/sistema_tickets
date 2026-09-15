@@ -1,18 +1,16 @@
-from .models import Notificacao, Setor
+from .models import Notificacao
+from .services.permissoes import e_gestor_da_ti, tem_acesso_operacional
 
 
 def papel_usuario(request):
     user = request.user
-    eh_gestor = (
-        user.is_authenticated
-        and not user.is_staff
-        and Setor.objects.filter(gestor=user).exists()
-    )
+    eh_gestor = user.is_authenticated and not user.is_staff and e_gestor_da_ti(user)
 
-    # Acesso operacional pleno (fila, histórico, base de conhecimento, SLA):
-    # técnicos, gestores de setor e superusuários. Só o Django admin (/admin/)
-    # continua exclusivo a superusuários.
-    pode_ver_slas = user.is_authenticated and (user.is_staff or user.is_superuser or eh_gestor)
+    # Mesma regra usada pelas views (tecnico_required) pra decidir o que
+    # aparece no menu — antes cada lado tinha sua própria conta e ficaram
+    # dessincronizados quando o critério de "gestor" mudou de "qualquer
+    # setor" para "só o setor de TI".
+    pode_ver_slas = tem_acesso_operacional(user)
 
     notificacoes_nao_lidas = (
         Notificacao.objects.filter(destinatario=user, lida=False).count()

@@ -709,3 +709,26 @@ class ArtigoConhecimento(models.Model):
 
     def __str__(self):
         return self.titulo
+
+
+class FeedbackArtigoConhecimento(models.Model):
+    """👍/👎 dado pelo solicitante num artigo sugerido durante a abertura de
+    chamado — mede se a base de conhecimento evitou a abertura. Um usuário
+    tem no máximo um feedback por artigo (unique_together); dar de novo
+    atualiza o voto anterior em vez de duplicar (ver services/artigos.py)."""
+
+    artigo = models.ForeignKey(ArtigoConhecimento, on_delete=models.CASCADE, related_name="feedbacks")
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    util = models.BooleanField(help_text="True = 👍 ajudou, False = 👎 não ajudou")
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Feedback de artigo da base de conhecimento"
+        verbose_name_plural = "Feedbacks de artigos da base de conhecimento"
+        constraints = [
+            models.UniqueConstraint(fields=["artigo", "usuario"], name="feedback_artigo_por_usuario_unico"),
+        ]
+
+    def __str__(self):
+        return f"{'👍' if self.util else '👎'} {self.usuario} → {self.artigo}"

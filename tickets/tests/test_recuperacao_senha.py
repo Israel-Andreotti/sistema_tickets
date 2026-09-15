@@ -79,6 +79,7 @@ class FluxoEsqueciSenhaViewTests(TestCase):
 
         self.assertEqual(resposta.status_code, 200)
         self.assertEqual(len(mail.outbox), 0)
+        self.assertContains(resposta, "Não foi possível enviar um código")
 
     def test_usuario_sem_email_mostra_erro(self):
         get_user_model().objects.create_user(username="sem_email_fluxo_recuperacao")
@@ -86,8 +87,11 @@ class FluxoEsqueciSenhaViewTests(TestCase):
         resposta = self.client.post(reverse("esqueci_senha"), {"username": "sem_email_fluxo_recuperacao"})
 
         self.assertEqual(resposta.status_code, 200)
-        self.assertContains(resposta, "não tem e-mail cadastrado")
         self.assertEqual(len(mail.outbox), 0)
+        # Mesma mensagem do teste acima (username inexistente): as duas falhas
+        # não podem ser diferenciadas pelo texto, senão dá pra descobrir que
+        # usernames existem só tentando "esqueci minha senha".
+        self.assertContains(resposta, "Não foi possível enviar um código")
 
     def test_username_valido_envia_codigo_e_redireciona(self):
         resposta = self.client.post(

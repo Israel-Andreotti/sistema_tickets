@@ -7,6 +7,12 @@
 <link rel="stylesheet" href="{% static 'tickets/css/detalhe_artigo.css' %}">
 {% endblock %}
 
+{% block extra_js %}
+{% if mostrar_feedback_artigo and not feedback_existente %}
+<script src="{% static 'tickets/js/detalhe_artigo.js' %}" defer></script>
+{% endif %}
+{% endblock %}
+
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-lg-8">
@@ -34,6 +40,28 @@
                 {% endif %}
 
                 <div class="description-box artigo-conteudo">{{ artigo.conteudo|safe }}</div>
+
+                {% if mostrar_feedback_artigo %}
+                <div
+                    class="mt-3 pt-3 border-top" id="feedbackArtigoBloco"
+                    data-url-feedback="{% url 'tickets:feedback_artigo' artigo.pk %}">
+                    {% csrf_token %}
+                    {% if feedback_existente %}
+                        <p class="small text-success mb-0" id="feedbackArtigoConfirmacao">
+                            Obrigado! Você disse que este artigo
+                            {% if feedback_existente.util %}ajudou{% else %}não ajudou{% endif %}
+                            a resolver seu problema.
+                        </p>
+                    {% else %}
+                        <p class="small text-muted mb-2">Este artigo ajudou a resolver seu problema?</p>
+                        <div class="d-flex gap-2" id="feedbackArtigoBotoes">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-util="true">👍 Ajudou</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-util="false">👎 Não ajudou</button>
+                        </div>
+                        <p class="small text-success mb-0 d-none" id="feedbackArtigoConfirmacao">Obrigado pelo feedback!</p>
+                    {% endif %}
+                </div>
+                {% endif %}
 
                 {% if user.is_staff or eh_gestor %}
                     <div class="mt-3">

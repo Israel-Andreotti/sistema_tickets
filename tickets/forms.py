@@ -101,6 +101,12 @@ class AbrirTicketForm(forms.Form):
         error_messages={"required": "Informe o ramal."},
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
+    solicitante_sala = forms.CharField(
+        label="Sala (opcional)",
+        required=False,
+        help_text="Ajuda o técnico a localizar o equipamento, se for presencial.",
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Ex: 204"}),
+    )
     setor = forms.ModelChoiceField(
         queryset=Setor.objects.order_by("nome"),
         label="Setor",
@@ -112,7 +118,7 @@ class AbrirTicketForm(forms.Form):
         label="Grupo do problema",
         error_messages={"required": "Selecione o grupo do problema."},
         widget=forms.Select(attrs={"class": "form-select"}),
-        help_text="Ajuda a encontrar a categoria certa na lista abaixo.",
+        help_text="Ajuda a encontrar a categoria certa no campo \"Categoria específica\".",
     )
     categoria_sugerida = forms.ModelChoiceField(
         queryset=Categoria.objects.filter(ativo=True).order_by("nome"),
@@ -121,9 +127,12 @@ class AbrirTicketForm(forms.Form):
     )
     impacto = forms.ChoiceField(
         choices=Ticket.Impacto.choices,
-        label="Nível de atendimento",
+        # "Nível de atendimento" já é o nome do N1/N2/N3 técnico (Ticket.nivel_atual,
+        # usado no escalonamento) — chamar os dois campos pelo mesmo nome deixava
+        # ambíguo, na tela do chamado, qual dos dois estava sendo mostrado.
+        label="Abrangência do impacto",
         help_text="Quem ou o que está sendo impactado pelo problema.",
-        error_messages={"required": "Selecione o nível de atendimento."},
+        error_messages={"required": "Selecione a abrangência do impacto."},
         widget=forms.Select(attrs={"class": "form-select"}),
     )
     patrimonio = forms.CharField(

@@ -298,12 +298,33 @@ document.addEventListener('DOMContentLoaded', function () {
         function fecharSugestoesResposta() {
             sugestoesRespostaRapida.classList.add('d-none');
             sugestoesRespostaRapida.innerHTML = '';
+            buscaRespostaRapida.setAttribute('aria-expanded', 'false');
+            buscaRespostaRapida.removeAttribute('aria-activedescendant');
             itensAtuaisResposta = [];
             indiceAtivoResposta = -1;
         }
 
+        // Avisa que o texto do modelo foi ACRESCENTADO, não substituiu o que
+        // já estava escrito — sem isso não há nenhuma pista visual de que o
+        // conteúdo anterior continua lá, só embaixo do modelo inserido.
+        function avisarModeloInserido() {
+            var aviso = document.getElementById('avisoModeloInserido');
+            if (!aviso) {
+                aviso = document.createElement('div');
+                aviso.id = 'avisoModeloInserido';
+                aviso.className = 'form-text text-success';
+                campoTextoComentario.insertAdjacentElement('afterend', aviso);
+            }
+            aviso.textContent = 'Modelo inserido no final do texto.';
+            clearTimeout(avisarModeloInserido._timer);
+            avisarModeloInserido._timer = setTimeout(function () {
+                aviso.textContent = '';
+            }, 4000);
+        }
+
         function selecionarResposta(item) {
             var textoAtual = campoTextoComentario.value.trim();
+            var tinhaTextoAntes = !!textoAtual;
             campoTextoComentario.value = textoAtual
                 ? textoAtual + '\n\n' + item.texto
                 : item.texto;
@@ -314,14 +335,24 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (radio) radio.checked = true;
             }
 
+            if (tinhaTextoAntes) avisarModeloInserido();
+
             buscaRespostaRapida.value = '';
             fecharSugestoesResposta();
         }
 
         function destacarSugestaoAtivaResposta() {
             Array.prototype.forEach.call(sugestoesRespostaRapida.querySelectorAll('.menu-flutuante-item'), function (el, indice) {
-                el.classList.toggle('ativo', indice === indiceAtivoResposta);
+                var ativo = indice === indiceAtivoResposta;
+                el.classList.toggle('ativo', ativo);
+                el.setAttribute('aria-selected', ativo.toString());
             });
+            var itemAtivo = sugestoesRespostaRapida.querySelectorAll('.menu-flutuante-item')[indiceAtivoResposta];
+            if (itemAtivo) {
+                buscaRespostaRapida.setAttribute('aria-activedescendant', itemAtivo.id);
+            } else {
+                buscaRespostaRapida.removeAttribute('aria-activedescendant');
+            }
         }
 
         function renderizarSugestoesResposta(lista) {
@@ -333,6 +364,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
             var grupoAnterior = null;
+            var indiceOpcao = 0;
             lista.forEach(function (item) {
                 if (item.grupo_label !== grupoAnterior) {
                     var rotulo = document.createElement('div');
@@ -343,6 +375,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 var botao = document.createElement('button');
                 botao.type = 'button';
+                botao.id = 'resposta-opcao-' + indiceOpcao++;
+                botao.setAttribute('role', 'option');
+                botao.setAttribute('aria-selected', 'false');
                 botao.className = 'menu-flutuante-item';
                 botao.textContent = item.tipo_label ? item.titulo + ' — ' + item.tipo_label : item.titulo;
                 botao.addEventListener('mousedown', function (evento) {
@@ -352,6 +387,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 sugestoesRespostaRapida.appendChild(botao);
             });
             sugestoesRespostaRapida.classList.remove('d-none');
+            buscaRespostaRapida.setAttribute('aria-expanded', 'true');
         }
 
         buscaRespostaRapida.addEventListener('input', function () {
